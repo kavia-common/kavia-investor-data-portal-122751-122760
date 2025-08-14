@@ -1,5 +1,6 @@
 import React from 'react';
 import wordmark from '../../assets/brand/wordmark_logo.svg';
+import NotificationsBell from '../common/NotificationsBell';
 
 /**
  * PUBLIC_INTERFACE
@@ -70,6 +71,7 @@ export default function Header({ theme, toggleTheme, onMenuToggle }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <NotificationsBell />
         <button
           className="theme-toggle"
           onClick={toggleTheme}
