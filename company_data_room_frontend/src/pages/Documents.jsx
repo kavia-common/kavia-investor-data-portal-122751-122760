@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import useDocuments from '../hooks/useDocuments';
+import useNDA from '../hooks/useNDA';
 import DocumentList from '../components/documents/DocumentList';
 import UploadForm from '../components/documents/UploadForm';
+import NDAModal from '../components/modals/NDAModal';
 import { useNavigate } from 'react-router-dom';
 
 /**
@@ -15,12 +17,14 @@ import { useNavigate } from 'react-router-dom';
  * - Uses useDocuments(tier) to fetch items from metadata table or storage fallback.
  * - Click-to-view navigates to an inline viewer route where a short-lived signed URL is fetched.
  * - Founders/admins can upload/delete; investors get read-only access.
+ * - Integrates NDA status checking and gating for NDA-tier documents
  */
 export default function Documents() {
   const { roleClaims } = useAuth();
   const navigate = useNavigate();
-
+  const { canAccessNDATier, ndaStatus, initiateNDA } = useNDA();
   const [selectedTier, setSelectedTier] = useState('public');
+  const [showNDAModal, setShowNDAModal] = useState(false);
 
   // Data binding for current tier
   const {
@@ -68,6 +72,24 @@ export default function Documents() {
               }}
             >
               {t.label}
+              {t.key === 'nda' && (
+                <span
+                  style={{
+                    marginLeft: 6,
+                    fontSize: '0.8em',
+                    padding: '2px 6px',
+                    borderRadius: 999,
+                    background: canAccessNDATier 
+                      ? 'rgba(40, 167, 69, 0.15)' 
+                      : 'rgba(220, 53, 69, 0.15)',
+                    color: canAccessNDATier 
+                      ? 'var(--success)' 
+                      : 'var(--danger)',
+                  }}
+                >
+                  {canAccessNDATier ? '✓' : '!'}
+                </span>
+              )}
             </button>
           );
         })}
@@ -111,6 +133,8 @@ export default function Documents() {
         onRefresh={refresh}
         onRemove={removeDocument}
         getSignedUrl={getSignedUrl}
+        canAccessNDATier={canAccessNDATier}
+        onNDARequired={() => setShowNDAModal(true)}
         onOpenDocument={(doc) => {
           // Navigate to the inline viewer with URL-encoded storage path
           const encodedPath = encodeURIComponent(doc?.path || '');
@@ -119,6 +143,19 @@ export default function Documents() {
           }
         }}
       />
+
+      {/* NDA Modal */}
+      {showNDAModal && (
+        <NDAModal
+          isOpen={showNDAModal}
+          onClose={() => setShowNDAModal(false)}
+          onComplete={() => {
+            setShowNDAModal(false);
+            // Refresh to update NDA status
+            refresh();
+          }}
+        />
+      )}
 
       <footer style={{ fontSize: 14, opacity: 0.8 }}>
         <strong>Your roles:</strong>{' '}

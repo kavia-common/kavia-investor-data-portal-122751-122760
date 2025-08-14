@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import AccessRequestModal from '../components/modals/AccessRequestModal';
 import NDAModal from '../components/modals/NDAModal';
 import useRequests from '../hooks/useRequests';
+import useNDA, { NDA_STATUS } from '../hooks/useNDA';
 
 /**
  * PUBLIC_INTERFACE
@@ -10,6 +11,7 @@ import useRequests from '../hooks/useRequests';
  *
  * Investor dashboard with request submission and tracking.
  * Shows current user's requests with ability to withdraw pending ones.
+ * Adds NDA status badge and quick entry to signing flow.
  */
 export default function InvestorDashboard() {
   const { user, roleClaims } = useAuth();
@@ -22,6 +24,9 @@ export default function InvestorDashboard() {
     refreshMine,
     counts,
   } = useRequests();
+
+  // NDA state
+  const { canAccessNDATier, ndaStatus } = useNDA();
 
   const [showAccess, setShowAccess] = useState(false);
   const [showNda, setShowNda] = useState(false);
@@ -56,6 +61,28 @@ export default function InvestorDashboard() {
         title={`Status: ${status}`}
       >
         {String(status).toUpperCase()}
+      </span>
+    );
+  }
+
+  function NDABadge() {
+    const isSigned = Boolean(canAccessNDATier);
+    const label = isSigned ? 'NDA: Signed' : (ndaStatus === NDA_STATUS.PENDING_SIGNATURE ? 'NDA: Pending' : 'NDA: Required');
+    const color = isSigned ? '#31C48D' : ndaStatus === NDA_STATUS.PENDING_SIGNATURE ? '#F4B25A' : '#F4B25A';
+    return (
+      <span
+        style={{
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color,
+          fontWeight: 700,
+        }}
+        title={label}
+      >
+        {label}
       </span>
     );
   }
@@ -167,6 +194,38 @@ export default function InvestorDashboard() {
         <p className="description" style={{ opacity: 0.85, marginTop: 6 }}>
           Visible to: Investor role (and Admin for testing)
         </p>
+
+        {/* NDA status strip */}
+        <div
+          role="note"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            marginTop: 8,
+            padding: '8px 10px',
+            borderRadius: 10,
+            border: '1px solid var(--border-color)',
+            background: 'var(--bg-secondary)',
+          }}
+        >
+          <NDABadge />
+          <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            {canAccessNDATier
+              ? 'You can access NDA-protected documents.'
+              : 'NDA is required to access sensitive documents.'}
+          </span>
+          {!canAccessNDATier && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setShowNda(true)}
+              style={{ marginLeft: 'auto', paddingInline: 12 }}
+            >
+              Sign NDA
+            </button>
+          )}
+        </div>
       </header>
 
       <article
@@ -202,7 +261,7 @@ export default function InvestorDashboard() {
             style={{ fontWeight: 600 }}
             aria-label="Open NDA signing modal"
           >
-            Sign NDA
+            {canAccessNDATier ? 'View NDA status' : 'Sign NDA'}
           </button>
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>

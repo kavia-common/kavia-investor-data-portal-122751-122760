@@ -10,6 +10,7 @@ import React from 'react';
  * - Click-to-view using signed URLs (secure, short-lived)
  * - Optional delete button for founders/admins
  * - Manual refresh action
+ * - NDA status indicators and access control
  *
  * Props:
  * - tier: 'public' | 'qualified' | 'nda' — the current tier label to display
@@ -21,6 +22,8 @@ import React from 'react';
  * - onRemove?: (path: string) => Promise<{ error: Error | null }>
  * - getSignedUrl?: (path: string, expiresIn?: number) => Promise<{ signedUrl: string | null, error: Error | null }>
  * - onOpenDocument?: (item) => void — custom open handler; if not provided, uses getSignedUrl to open in new tab
+ * - canAccessNDATier?: boolean — whether user has signed the NDA
+ * - onNDARequired?: () => void — callback when NDA signature is required
  */
 export default function DocumentList({
   tier = 'public',
@@ -32,6 +35,8 @@ export default function DocumentList({
   onRemove = null,
   getSignedUrl = null,
   onOpenDocument = null,
+  canAccessNDATier = false,
+  onNDARequired = () => {},
 }) {
   function formatBytes(bytes) {
     if (!bytes && bytes !== 0) return '';
@@ -53,6 +58,13 @@ export default function DocumentList({
 
   async function handleOpen(item) {
     if (!item) return;
+    
+    // Check NDA access for NDA-tier documents
+    if (item.tier === 'nda' && !canAccessNDATier) {
+      onNDARequired();
+      return;
+    }
+    
     if (typeof onOpenDocument === 'function') {
       onOpenDocument(item);
       return;
@@ -213,18 +225,40 @@ export default function DocumentList({
                   >
                     {doc.name || doc.path?.split('/').pop() || 'untitled'}
                   </strong>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      padding: '2px 6px',
-                      borderRadius: 999,
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      color: 'var(--text-secondary)',
-                    }}
-                  >
-                    {doc.contentType || 'file'}
-                  </span>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        padding: '2px 6px',
+                        borderRadius: 999,
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.08)',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      {doc.contentType || 'file'}
+                    </span>
+                    {doc.tier === 'nda' && (
+                      <span
+                        style={{
+                          fontSize: 11,
+                          padding: '2px 6px',
+                          borderRadius: 999,
+                          background: canAccessNDATier 
+                            ? 'rgba(40, 167, 69, 0.15)' 
+                            : 'rgba(220, 53, 69, 0.15)',
+                          border: `1px solid ${canAccessNDATier 
+                            ? 'rgba(40, 167, 69, 0.3)' 
+                            : 'rgba(220, 53, 69, 0.3)'}`,
+                          color: canAccessNDATier 
+                            ? 'var(--success)' 
+                            : 'var(--danger)',
+                        }}
+                      >
+                        {canAccessNDATier ? 'NDA Signed' : 'NDA Required'}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div
                   style={{
