@@ -3,6 +3,8 @@ import { useAuth } from '../context/AuthContext';
 import useRequests from '../hooks/useRequests';
 import useNotifications from '../hooks/useNotifications';
 import useAnalytics from '../hooks/useAnalytics';
+import FlaggedContent from '../components/admin/FlaggedContent';
+import AuditLogs from '../components/admin/AuditLogs';
 
 /**
  * PUBLIC_INTERFACE
@@ -509,6 +511,8 @@ export default function AdminPanel() {
           gridTemplateColumns: '1fr',
         }}
       >
+        <FlaggedContent />
+
         <section aria-label="All Access Requests" style={{ display: 'grid', gap: 8 }}>
           {loadingAll && (
             <div aria-busy="true" style={{ color: 'var(--text-secondary)', fontSize: 14, opacity: 0.9 }}>
@@ -731,6 +735,8 @@ export default function AdminPanel() {
             )}
           </div>
         </section>
+
+        <AuditLogs />
       </div>
     </section>
   );
