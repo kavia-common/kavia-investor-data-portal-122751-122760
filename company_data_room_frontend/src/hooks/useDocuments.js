@@ -243,12 +243,13 @@ export default function useDocuments(initialTier = 'public') {
      * Only founder/admin can upload.
      *
      * @param {File} file - The file to upload
-     * @param {{ tier?: string, name?: string }} [opts]
+     * @param {{ tier?: string, name?: string, tags?: string[] }} [opts]
      * @returns {Promise<{ data: any, error: Error | null }>}
      */
     async (file, opts = {}) => {
       const targetTier = normalizeTier(opts.tier) || tier;
       const desiredName = opts.name || file?.name || 'file';
+      const tags = Array.isArray(opts.tags) ? opts.tags.slice(0, 20) : [];
 
       if (!file || !(file instanceof File)) {
         return { data: null, error: new Error('No file provided for upload.') };
@@ -285,6 +286,8 @@ export default function useDocuments(initialTier = 'public') {
             content_type: file.type || null,
             size: file.size || null,
             owner: user?.id ?? null,
+            // Optional tagging if schema includes it (e.g., tags: text[] / jsonb)
+            tags: tags.length > 0 ? tags : null,
           });
         });
 
