@@ -1,12 +1,14 @@
 import React, { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import useRequests from '../hooks/useRequests';
+import useNotifications from '../hooks/useNotifications';
 
 /**
  * PUBLIC_INTERFACE
  * AdminPanel
  *
- * Admin panel includes a simple access-request management view (approve/deny/revoke).
+ * Admin panel includes access-request management (approve/deny/revoke)
+ * and a recent activity/notifications feed tailored to Admin role.
  */
 export default function AdminPanel() {
   const { user, roleClaims } = useAuth();
@@ -20,6 +22,16 @@ export default function AdminPanel() {
     refreshAll,
     counts,
   } = useRequests();
+
+  const {
+    items: notifItems,
+    unreadCount: notifUnread,
+    loading: notifLoading,
+    error: notifError,
+    refresh: refreshNotifs,
+    markAllRead: markAllNotifsRead,
+    markRead: markNotifRead,
+  } = useNotifications();
 
   const list = useMemo(() => allRequests || [], [allRequests]);
 
@@ -59,6 +71,136 @@ export default function AdminPanel() {
     else if (type === 'revoke') await revokeRequest(id, { reason });
   }
 
+  // Recent activity utilities
+  function toRelativeTime(dateIso) {
+    if (!dateIso) return '';
+    const dt = new Date(dateIso);
+    const diff = Date.now() - dt.getTime();
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}d ago`;
+    return dt.toLocaleDateString();
+  }
+
+  function TierChip({ tier }) {
+    if (!tier) return null;
+    const label = String(tier).toUpperCase();
+    return (
+      <span
+        style={{
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: 'var(--text-secondary)',
+        }}
+        title={`Tier: ${label}`}
+      >
+        {label}
+      </span>
+    );
+  }
+
+  function ActivityItem({ n }) {
+    const isUnread = String(n.status || '').toLowerCase() === 'unread';
+    const leftBarColor = isUnread ? 'var(--brand-primary)' : 'transparent';
+    const opacity = isUnread ? 1 : 0.9;
+
+    const tier = n?.metadata?.tier || null;
+    const status = n?.metadata?.status || null;
+
+    return (
+      <div
+        role="listitem"
+        tabIndex={0}
+        aria-label={`${n.title}. ${n.body}`}
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '6px 1fr',
+          gap: 10,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 10,
+          padding: '10px 12px',
+          opacity,
+          outline: 'none',
+        }}
+        onClick={() => {
+          if (isUnread) {
+            markNotifRead(n.id);
+          }
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            width: 6,
+            borderRadius: 4,
+            background: leftBarColor,
+          }}
+        />
+        <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            <strong
+              style={{
+                color: 'var(--text-primary)',
+                fontSize: 14,
+                lineHeight: 1.2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={n.title}
+            >
+              {n.title}
+            </strong>
+            <TierChip tier={tier} />
+            {status && <StatusBadge status={status} />}
+            <span
+              aria-label="time"
+              style={{
+                marginLeft: 'auto',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                opacity: 0.9,
+                whiteSpace: 'nowrap',
+              }}
+              title={n.createdAt ? new Date(n.createdAt).toLocaleString() : ''}
+            >
+              {toRelativeTime(n.createdAt)}
+            </span>
+          </div>
+          <p
+            style={{
+              margin: 0,
+              color: 'var(--text-secondary)',
+              fontSize: 13,
+              lineHeight: 1.35,
+            }}
+          >
+            {n.body}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const recentNotifs = useMemo(() => {
+    const items = Array.isArray(notifItems) ? notifItems.slice() : [];
+    items.sort((a, b) => {
+      const tA = new Date(a.createdAt || 0).getTime();
+      const tB = new Date(b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+    return items.slice(0, 10);
+  }, [notifItems]);
+
   return (
     <section
       aria-label="Admin Panel"
@@ -94,7 +236,7 @@ export default function AdminPanel() {
           {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0 ? roleClaims.roles.join(', ') : 'none'}
         </div>
 
-        <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={() => refreshAll()}
@@ -102,140 +244,229 @@ export default function AdminPanel() {
             aria-label="Refresh requests"
             style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
           >
-            Refresh
+            Refresh Requests
           </button>
-          <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
-            Totals • All: {counts?.total ?? (list?.length || 0)} • Pending: {counts?.pending ?? 0} • Approved:{' '}
-            {counts?.approved ?? 0}
+          <button
+            type="button"
+            onClick={() => refreshNotifs()}
+            className="theme-toggle"
+            aria-label="Refresh activity"
+            style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+          >
+            Refresh Activity
+          </button>
+          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
+            Totals • All: {counts?.total ?? (list?.length || 0)} • Pending: {counts?.pending ?? 0} • Approved: {counts?.approved ?? 0}
           </span>
         </div>
       </article>
 
-      <section aria-label="All Access Requests" style={{ display: 'grid', gap: 8 }}>
-        {loadingAll && (
-          <div aria-busy="true" style={{ color: 'var(--text-secondary)', fontSize: 14, opacity: 0.9 }}>
-            Loading requests…
-          </div>
-        )}
-        {errorAll && (
-          <div
-            role="alert"
-            style={{
-              color: 'var(--text-primary)',
-              background: 'rgba(220, 53, 69, 0.12)',
-              border: '1px solid rgba(220, 53, 69, 0.3)',
-              borderRadius: 10,
-              padding: '10px 12px',
-            }}
-          >
-            {errorAll?.message || String(errorAll)}
-          </div>
-        )}
-
-        <div
-          role="list"
-          style={{
-            display: 'grid',
-            gap: 10,
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-color)',
-            borderRadius: 12,
-            padding: '0.75rem',
-          }}
-        >
-          {(list || []).length === 0 && !loadingAll ? (
+      <div
+        style={{
+          display: 'grid',
+          gap: 12,
+          gridTemplateColumns: '1fr',
+        }}
+      >
+        <section aria-label="All Access Requests" style={{ display: 'grid', gap: 8 }}>
+          {loadingAll && (
+            <div aria-busy="true" style={{ color: 'var(--text-secondary)', fontSize: 14, opacity: 0.9 }}>
+              Loading requests…
+            </div>
+          )}
+          {errorAll && (
             <div
+              role="alert"
               style={{
-                textAlign: 'center',
-                color: 'var(--text-secondary)',
-                opacity: 0.85,
-                border: '1px dashed var(--border-color)',
+                color: 'var(--text-primary)',
+                background: 'rgba(220, 53, 69, 0.12)',
+                border: '1px solid rgba(220, 53, 69, 0.3)',
                 borderRadius: 10,
-                padding: '16px 12px',
+                padding: '10px 12px',
               }}
             >
-              No access requests submitted yet.
+              {errorAll?.message || String(errorAll)}
             </div>
-          ) : (
-            (list || []).map((req) => {
-              const isPending = String(req.status || '').toLowerCase() === 'pending';
-              const isApproved = String(req.status || '').toLowerCase() === 'approved';
-              return (
-                <div
-                  key={req.id}
-                  role="listitem"
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    gap: 10,
-                    padding: '10px 12px',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 10,
-                    background: 'transparent',
-                  }}
-                >
-                  <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <strong style={{ fontSize: 14 }}>
-                        {req.email || 'Unknown user'} • Tier:{' '}
-                        {String(req.tier || '').toUpperCase()}
-                      </strong>
-                      <StatusBadge status={req.status} />
-                      <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
-                        {req.createdAt ? new Date(req.createdAt).toLocaleString() : ''}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                      <span>Organization: {req.organization || '-'}</span>
-                      {req.notes && (
-                        <span style={{ marginLeft: 10, opacity: 0.9 }}>• Notes: {req.notes}</span>
-                      )}
-                      {req.reason && (
-                        <span style={{ marginLeft: 10, opacity: 0.9 }}>• Reason: {req.reason}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    {isPending && (
-                      <>
-                        <button
-                          type="button"
-                          className="theme-toggle"
-                          onClick={() => doAction('approve', req.id)}
-                          style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
-                          title="Approve request"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          type="button"
-                          className="theme-toggle"
-                          onClick={() => doAction('deny', req.id)}
-                          style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
-                          title="Deny request"
-                        >
-                          Deny
-                        </button>
-                      </>
-                    )}
-                    {isApproved && (
-                      <button
-                        type="button"
-                        className="theme-toggle"
-                        onClick={() => doAction('revoke', req.id)}
-                        style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
-                        title="Revoke access"
-                      >
-                        Revoke
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })
           )}
-        </div>
-      </section>
+
+          <div
+            role="list"
+            style={{
+              display: 'grid',
+              gap: 10,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 12,
+              padding: '0.75rem',
+            }}
+          >
+            {(list || []).length === 0 && !loadingAll ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  color: 'var(--text-secondary)',
+                  opacity: 0.85,
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 10,
+                  padding: '16px 12px',
+                }}
+              >
+                No access requests submitted yet.
+              </div>
+            ) : (
+              (list || []).map((req) => {
+                const isPending = String(req.status || '').toLowerCase() === 'pending';
+                const isApproved = String(req.status || '').toLowerCase() === 'approved';
+                return (
+                  <div
+                    key={req.id}
+                    role="listitem"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 10,
+                      padding: '10px 12px',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 10,
+                      background: 'transparent',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <strong style={{ fontSize: 14 }}>
+                          {req.email || 'Unknown user'} • Tier:{' '}
+                          {String(req.tier || '').toUpperCase()}
+                        </strong>
+                        <StatusBadge status={req.status} />
+                        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
+                          {req.createdAt ? new Date(req.createdAt).toLocaleString() : ''}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        <span>Organization: {req.organization || '-'}</span>
+                        {req.notes && (
+                          <span style={{ marginLeft: 10, opacity: 0.9 }}>• Notes: {req.notes}</span>
+                        )}
+                        {req.reason && (
+                          <span style={{ marginLeft: 10, opacity: 0.9 }}>• Reason: {req.reason}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {isPending && (
+                        <>
+                          <button
+                            type="button"
+                            className="theme-toggle"
+                            onClick={() => doAction('approve', req.id)}
+                            style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                            title="Approve request"
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button"
+                            className="theme-toggle"
+                            onClick={() => doAction('deny', req.id)}
+                            style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                            title="Deny request"
+                          >
+                            Deny
+                          </button>
+                        </>
+                      )}
+                      {isApproved && (
+                        <button
+                          type="button"
+                          className="theme-toggle"
+                          onClick={() => doAction('revoke', req.id)}
+                          style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                          title="Revoke access"
+                        >
+                          Revoke
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section aria-label="Recent Activity" style={{ display: 'grid', gap: 8 }}>
+          <header style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Recent Activity</h2>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
+              {notifUnread} unread
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => refreshNotifs()}
+                className="theme-toggle"
+                style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                disabled={notifLoading}
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                onClick={() => markAllNotifsRead()}
+                className="theme-toggle"
+                style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                disabled={notifUnread === 0}
+              >
+                Mark all as read
+              </button>
+            </div>
+          </header>
+
+          {notifError && (
+            <div
+              role="alert"
+              style={{
+                color: 'var(--text-primary)',
+                background: 'rgba(220, 53, 69, 0.12)',
+                border: '1px solid rgba(220, 53, 69, 0.3)',
+                borderRadius: 10,
+                padding: '10px 12px',
+              }}
+            >
+              {notifError?.message || String(notifError)}
+            </div>
+          )}
+
+          <div
+            role="list"
+            style={{
+              display: 'grid',
+              gap: 10,
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: 12,
+              padding: '0.75rem',
+            }}
+          >
+            {recentNotifs.length === 0 && !notifLoading ? (
+              <div
+                style={{
+                  textAlign: 'center',
+                  color: 'var(--text-secondary)',
+                  opacity: 0.85,
+                  border: '1px dashed var(--border-color)',
+                  borderRadius: 10,
+                  padding: '16px 12px',
+                }}
+              >
+                No activity yet.
+              </div>
+            ) : (
+              recentNotifs.map((n) => <ActivityItem key={n.id} n={n} />)
+            )}
+          </div>
+        </section>
+      </div>
     </section>
   );
 }
