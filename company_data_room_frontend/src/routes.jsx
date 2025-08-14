@@ -1,6 +1,7 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
+import ProtectedRoute from './components/common/ProtectedRoute';
 
 /**
  * PUBLIC_INTERFACE
@@ -18,7 +19,14 @@ export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/dashboard" element={<Dashboard />} />
+      <Route
+        path="/dashboard"
+        element={
+          <ProtectedRoute requiredRoles={['investor', 'founder', 'admin']}>
+            <Dashboard />
+          </ProtectedRoute>
+        }
+      />
       <Route path="/about" element={<About />} />
       <Route path="/login" element={<Login />} />
       <Route path="*" element={<NotFound />} />
