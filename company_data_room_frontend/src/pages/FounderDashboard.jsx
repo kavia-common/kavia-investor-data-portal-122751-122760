@@ -1,5 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import AccessRequestModal from '../components/modals/AccessRequestModal';
+import NDAModal from '../components/modals/NDAModal';
 
 /**
  * PUBLIC_INTERFACE
@@ -8,11 +10,27 @@ import { useAuth } from '../context/AuthContext';
  * Renders a basic placeholder dashboard view intended for users with the "founder" role.
  * Displays the authenticated user's email (if any) and their role claims for context.
  *
+ * Adds UI-only modals:
+ * - Request Access (useful for testing investor flow)
+ * - Sign NDA (UI stub; founders may test this flow)
+ *
  * Returns:
- * - JSX element: basic layout with heading, role visibility note, and user/role info
+ * - JSX element: basic layout with heading, role visibility note, user/role info, and modal triggers
  */
 export default function FounderDashboard() {
   const { user, roleClaims } = useAuth();
+
+  const [showAccess, setShowAccess] = useState(false);
+  const [showNda, setShowNda] = useState(false);
+
+  function handleAccessSubmit(payload) {
+    // eslint-disable-next-line no-console
+    console.log('[FounderDashboard] Access request submitted (stub):', payload);
+  }
+  function handleNdaSign(payload) {
+    // eslint-disable-next-line no-console
+    console.log('[FounderDashboard] NDA signed (stub):', payload);
+  }
 
   return (
     <section
@@ -47,7 +65,40 @@ export default function FounderDashboard() {
         <div style={{ marginTop: 10, fontSize: 14, opacity: 0.8 }}>
           <strong>Your roles:</strong> {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0 ? roleClaims.roles.join(', ') : 'none'}
         </div>
+
+        {/* Action buttons for testing modal flows */}
+        <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => setShowAccess(true)}
+            style={{ paddingInline: 16, fontWeight: 600 }}
+          >
+            Request Access
+          </button>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={() => setShowNda(true)}
+            style={{ fontWeight: 600 }}
+            aria-label="Open NDA signing modal"
+          >
+            Sign NDA
+          </button>
+        </div>
       </article>
+
+      {/* Modals */}
+      <AccessRequestModal
+        isOpen={showAccess}
+        onClose={() => setShowAccess(false)}
+        onSubmit={handleAccessSubmit}
+      />
+      <NDAModal
+        isOpen={showNda}
+        onClose={() => setShowNda(false)}
+        onSign={handleNdaSign}
+      />
     </section>
   );
 }
