@@ -1,75 +1,118 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import useNotifications from '../../hooks/useNotifications';
 
 /**
  * PUBLIC_INTERFACE
- * NotificationsBell renders a bell icon with an unread badge and toggles a right-side
- * notifications drawer using static placeholder data. This is a UI-only scaffold to be
- * replaced by a real notifications system in a later step.
+ * NotificationsBell
  *
- * Behavior:
- * - Shows a badge with the number of unread notifications (computed from dummy data).
- * - Clicking the bell toggles a drawer. Clicking the backdrop or pressing Escape closes it.
- * - "Mark all as read" updates local state to set all notifications as read.
- *
- * Accessibility:
- * - The bell button is a 44x44 touch target with appropriate ARIA attributes.
- * - The drawer is an aside with role="complementary" and labelled by its title.
+ * Renders a bell icon with unread badge and a right-side drawer listing notifications
+ * from Supabase (via useNotifications). Supports realtime updates, mark all as read,
+ * and shows status for access-request-related notifications.
  */
 export default function NotificationsBell() {
-  // Static placeholder notifications (dummy data)
-  const [items, setItems] = useState([
-    {
-      id: 'n1',
-      title: 'Access granted',
-      body: 'Your NDA was approved. You can now view Tier 3 documents.',
-      time: '2h ago',
-      read: false,
-      tier: 'NDA',
-    },
-    {
-      id: 'n2',
-      title: 'New document uploaded',
-      body: 'Founder uploaded “Financials Q2”.',
-      time: '1d ago',
-      read: false,
-      tier: 'Qualified',
-    },
-    {
-      id: 'n3',
-      title: 'Update: Company teaser',
-      body: 'A new version of the company teaser is available.',
-      time: '3d ago',
-      read: true,
-      tier: 'Public',
-    },
-  ]);
+  const { items, unreadCount, loading, error, markAllRead, markRead, refresh } = useNotifications();
 
   const [open, setOpen] = useState(false);
-  const unreadCount = useMemo(() => items.filter((i) => !i.read).length, [items]);
+  const [busy, setBusy] = useState(false);
 
   // Close on Escape
   useEffect(() => {
     if (!open) return;
-    function handleKey(e) {
+    function onKey(e) {
       if (e.key === 'Escape') setOpen(false);
     }
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, [open]);
 
   function toggleDrawer() {
     setOpen((v) => !v);
   }
-
-  function markAllRead() {
-    setItems((prev) => prev.map((i) => ({ ...i, read: true })));
-  }
-
   function closeDrawer() {
     setOpen(false);
   }
 
-  // Small badge element
+  async function doMarkAll() {
+    setBusy(true);
+    try {
+      await markAllRead();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toRelativeTime(dateIso) {
+    if (!dateIso) return '';
+    const dt = new Date(dateIso);
+    const diff = Date.now() - dt.getTime();
+    const s = Math.floor(diff / 1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s / 60);
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}d ago`;
+    return dt.toLocaleDateString();
+  }
+
+  function StatusChip({ notif }) {
+    const status = notif?.metadata?.status ? String(notif.metadata.status).toLowerCase() : null;
+    if (!status) return null;
+    const map = {
+      approved: '#31C48D',
+      denied: '#dc3545',
+      revoked: '#b02a37',
+      withdrawn: '#6c757d',
+      pending: '#F4B25A',
+    };
+    const color = map[status] || 'var(--text-secondary)';
+    return (
+      <span
+        style={{
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color,
+          fontWeight: 700,
+        }}
+        title={`Status: ${status}`}
+      >
+        {String(status).toUpperCase()}
+      </span>
+    );
+  }
+
+  function TierChip({ notif }) {
+    const tier = notif?.metadata?.tier ? String(notif.metadata.tier).toUpperCase() : null;
+    if (!tier) return null;
+    return (
+      <span
+        style={{
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color: 'var(--text-secondary)',
+        }}
+        title={`Tier: ${tier}`}
+      >
+        {tier}
+      </span>
+    );
+  }
+
+  const sortedItems = useMemo(() => {
+    return [...(items || [])].sort((a, b) => {
+      const tA = new Date(a.createdAt || 0).getTime();
+      const tB = new Date(b.createdAt || 0).getTime();
+      return tB - tA;
+    });
+  }, [items]);
+
   function Badge({ count = 0 }) {
     if (!count) return null;
     return (
@@ -99,10 +142,10 @@ export default function NotificationsBell() {
     );
   }
 
-  // Item renderer with KAVIA styling
   function NotificationItem({ item }) {
-    const leftBarColor = item.read ? 'transparent' : 'var(--brand-primary)';
-    const opacity = item.read ? 0.85 : 1;
+    const isUnread = String(item.status || '').toLowerCase() === 'unread';
+    const leftBarColor = isUnread ? 'var(--brand-primary)' : 'transparent';
+    const opacity = isUnread ? 1 : 0.9;
 
     return (
       <div
@@ -119,6 +162,11 @@ export default function NotificationsBell() {
           padding: '10px 12px',
           opacity,
           outline: 'none',
+        }}
+        onClick={() => {
+          if (isUnread) {
+            markRead(item.id);
+          }
         }}
       >
         <div
@@ -144,18 +192,8 @@ export default function NotificationsBell() {
             >
               {item.title}
             </strong>
-            <span
-              style={{
-                fontSize: 11,
-                padding: '2px 6px',
-                borderRadius: 999,
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.08)',
-                color: 'var(--text-secondary)',
-              }}
-            >
-              {item.tier}
-            </span>
+            <TierChip notif={item} />
+            <StatusChip notif={item} />
             <span
               aria-label="time"
               style={{
@@ -165,8 +203,9 @@ export default function NotificationsBell() {
                 opacity: 0.9,
                 whiteSpace: 'nowrap',
               }}
+              title={item.createdAt ? new Date(item.createdAt).toLocaleString() : ''}
             >
-              {item.time}
+              {toRelativeTime(item.createdAt)}
             </span>
           </div>
           <p
@@ -208,21 +247,11 @@ export default function NotificationsBell() {
             cursor: 'pointer',
             position: 'relative',
           }}
+          title={unreadCount ? `${unreadCount} unread notifications` : 'Notifications'}
         >
           {/* Bell icon */}
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-          >
-            <path
-              d="M14.5 18.5a2.5 2.5 0 1 1-5 0"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M14.5 18.5a2.5 2.5 0 1 1-5 0" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
             <path
               d="M4.5 17h15l-1.6-2.4a6 6 0 0 1-1-3.3V9.1a4.9 4.9 0 1 0-9.8 0v2.2c0 1.2-.34 2.36-1 3.37L4.5 17Z"
               stroke="currentColor"
@@ -236,14 +265,19 @@ export default function NotificationsBell() {
       </div>
 
       {/* Backdrop */}
-      {open && <div className="notif-backdrop" onClick={closeDrawer} role="button" aria-label="Close notifications" tabIndex={0} />}
+      {open && (
+        <div
+          className="notif-backdrop"
+          onClick={closeDrawer}
+          role="button"
+          aria-label="Close notifications"
+          tabIndex={0}
+          title="Close"
+        />
+      )}
 
       {/* Drawer */}
-      <aside
-        className={`notif-drawer ${open ? 'open' : ''}`}
-        role="complementary"
-        aria-labelledby="notif-title"
-      >
+      <aside className={`notif-drawer ${open ? 'open' : ''}`} role="complementary" aria-labelledby="notif-title">
         <header
           style={{
             display: 'flex',
@@ -257,10 +291,7 @@ export default function NotificationsBell() {
             zIndex: 1,
           }}
         >
-          <h2
-            id="notif-title"
-            style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}
-          >
+          <h2 id="notif-title" style={{ margin: 0, fontSize: 16, color: 'var(--text-primary)' }}>
             Notifications
           </h2>
           <span
@@ -277,15 +308,23 @@ export default function NotificationsBell() {
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
             <button
               type="button"
-              onClick={markAllRead}
+              onClick={() => refresh()}
               className="theme-toggle"
-              style={{
-                padding: '6px 10px',
-                fontSize: 12,
-                height: 'auto',
-              }}
+              style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+              disabled={loading}
+              title="Refresh notifications"
             >
-              Mark all as read
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={doMarkAll}
+              className="theme-toggle"
+              style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+              disabled={busy || unreadCount === 0}
+              title="Mark all as read"
+            >
+              {busy ? 'Working…' : 'Mark all as read'}
             </button>
             <button
               type="button"
@@ -305,12 +344,7 @@ export default function NotificationsBell() {
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M6 6l12 12M18 6L6 18"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
+                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </button>
           </div>
@@ -325,7 +359,21 @@ export default function NotificationsBell() {
             padding: 12,
           }}
         >
-          {items.length === 0 ? (
+          {error && (
+            <div
+              role="alert"
+              style={{
+                color: 'var(--text-primary)',
+                background: 'rgba(220, 53, 69, 0.12)',
+                border: '1px solid rgba(220, 53, 69, 0.3)',
+                borderRadius: 10,
+                padding: '10px 12px',
+              }}
+            >
+              {error?.message || String(error)}
+            </div>
+          )}
+          {sortedItems.length === 0 && !loading ? (
             <div
               style={{
                 textAlign: 'center',
@@ -339,7 +387,7 @@ export default function NotificationsBell() {
               No notifications yet.
             </div>
           ) : (
-            items.map((item) => <NotificationItem key={item.id} item={item} />)
+            sortedItems.map((item) => <NotificationItem key={item.id} item={item} />)
           )}
         </section>
 

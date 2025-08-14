@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { useAuth } from '../context/AuthContext';
+import useNotifications from './useNotifications';
 
 /**
  * Internal constants and utilities
@@ -167,6 +168,7 @@ const initialState = Object.freeze({
  */
 export default function useRequests() {
   const { user, hasRole, hasAnyRole } = useAuth();
+  const { addNotification } = useNotifications();
   const [state, setState] = useState(initialState);
 
   const mountedRef = useRef(true);
@@ -331,6 +333,41 @@ export default function useRequests() {
         // Refresh my list after submission
         await refreshMine();
 
+        // Notifications:
+        // 1) Confirmation to investor (self)
+        try {
+          await addNotification({
+            targetUserId: userId,
+            targetEmail: user?.email || null,
+            type: 'request_status',
+            title: 'Access request submitted',
+            body: `Your request for ${String(targetTier).toUpperCase()} has been submitted.`,
+            metadata: { status: 'pending', tier: targetTier, request_id: data?.id || null },
+            requestId: data?.id || null,
+          });
+        } catch {
+          // ignore addNotification errors
+        }
+
+        // 2) Alert founders/admins of a new request
+        try {
+          await addNotification({
+            targetRoles: ['founder', 'admin'],
+            type: 'access_request',
+            title: 'New access request',
+            body: `${user?.email || 'An investor'} requested ${String(targetTier).toUpperCase()} access.`,
+            metadata: {
+              status: 'pending',
+              tier: targetTier,
+              request_id: data?.id || null,
+              organization: insertPayload.organization,
+            },
+            requestId: data?.id || null,
+          });
+        } catch {
+          // ignore
+        }
+
         return { data, error: null };
       } catch (e) {
         if (mountedRef.current) setState((s) => ({ ...s, errorSubmit: e }));
@@ -389,6 +426,66 @@ export default function useRequests() {
         if (error) {
           if (mountedRef.current) setState((s) => ({ ...s, errorAction: error }));
           return { error };
+        }
+
+        // Fetch the updated row to craft notifications
+        let updated = null;
+        try {
+          const { data: fetched, error: fetchErr } = await supabase
+            .from(DEFAULT_TABLE)
+            .select('*')
+            .eq('id', id)
+            .single();
+          if (!fetchErr) {
+            updated = toRequestModel(fetched);
+          }
+        } catch {
+          // ignore fetch failure; we'll proceed without notification if needed
+        }
+
+        // Send notifications for managed actions (approved/denied/revoked)
+        try {
+          if (updated && ['approved', 'denied', 'revoked'].includes(status)) {
+            const tier = String(updated.tier || '').toUpperCase();
+            const titles = {
+              approved: 'Access request approved',
+              denied: 'Access request denied',
+              revoked: 'Access revoked',
+            };
+            const bodies = {
+              approved: `Your request for ${tier} has been approved.`,
+              denied: `Your request for ${tier} was denied${opts?.reason ? `: ${opts.reason}` : '.'}`,
+              revoked: `Your previously approved access for ${tier} was revoked${opts?.reason ? `: ${opts.reason}` : '.'}`,
+            };
+            await addNotification({
+              targetUserId: updated.userId || null,
+              targetEmail: updated.email || null,
+              type: 'request_status',
+              title: titles[status] || 'Request update',
+              body: bodies[status] || 'Your request was updated.',
+              metadata: { status, tier: updated.tier || null, reason: opts?.reason || null, request_id: id },
+              requestId: id,
+            });
+          }
+        } catch {
+          // ignore notification errors
+        }
+
+        // Notify founders/admins when an investor withdraws their request
+        try {
+          if (updated && status === 'withdrawn') {
+            const tier = String(updated.tier || '').toUpperCase();
+            await addNotification({
+              targetRoles: ['founder', 'admin'],
+              type: 'access_request',
+              title: 'Access request withdrawn',
+              body: `${updated.email || 'An investor'} withdrew their ${tier} request.`,
+              metadata: { status, tier: updated.tier || null, request_id: id },
+              requestId: id,
+            });
+          }
+        } catch {
+          // ignore
         }
 
         // Refresh appropriate lists
