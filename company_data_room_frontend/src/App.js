@@ -49,32 +49,21 @@ function MainLayout({ children, theme, toggleTheme }) {
 
 /**
  * PUBLIC_INTERFACE
- * App is the root component of the application. It provides:
- * - Theme toggle (light/dark) using a data-theme attribute on the HTML element.
- * - BrowserRouter setup.
- * - AuthProvider wrapping to ensure all routes are within authenticated context.
- * - MainLayout shell (Header + Sidebar) wrapping routed content.
+ * App is the root component of the application.
  */
 function App() {
-  // Default to dark mode to align with KAVIA brand canvas background
   const [theme, setTheme] = useState('dark');
 
-  // Effect to apply theme to document element
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  /**
-   * PUBLIC_INTERFACE
-   * Toggles the application theme between light and dark.
-   */
   const toggleTheme = () => {
     setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
   };
 
   return (
     <div className="App">
-      {/* Ensure all routes are nested within AuthProvider */}
       <AuthProvider>
         <BrowserRouter>
           <MainLayout theme={theme} toggleTheme={toggleTheme}>
