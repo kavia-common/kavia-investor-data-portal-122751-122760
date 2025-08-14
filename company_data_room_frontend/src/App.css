@@ -1,23 +1,62 @@
-/* CSS Variables for Theme Management */
+/* Kavia Brand Tokens (see assets/style_guide.md) */
 :root {
-  /* Light theme colors */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f8f9fa;
-  --text-primary: #282c34;
-  --text-secondary: #61dafb;
-  --border-color: #e9ecef;
-  --button-bg: #007bff;
+  --brand-primary: #F26A1B;
+  --brand-primary-hover: #E15E0D;
+  --brand-orange-2: #F4682C;
+  --brand-peach: #FF9358;
+  --brand-cream: #FDF7F2;
+
+  --bg-canvas: #231F20;
+  --bg-footer: #161314;
+  --surface-subtle: #332F30;
+  --surface-elevated: #37322F;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #DEDCDD;
+  --text-muted: #B0AEAD;
+
+  --border-subtle: #3A3533;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --shadow-button-primary: inset 0px -2px 0px rgba(0, 0, 0, 0.75),
+                           0px 12px 24px -6px rgba(45, 32, 17, 0.3),
+                           0px 4px 8px rgba(45, 32, 17, 0.2),
+                           0px 1.5px 3px rgba(45, 32, 17, 0.2),
+                           0px 1px 1px rgba(45, 32, 17, 0.12);
+
+  /* App theme mapping */
+  --bg-primary: var(--bg-canvas);
+  --bg-secondary: var(--surface-subtle);
+  --border-color: var(--border-subtle);
+  --button-bg: var(--brand-primary);
+  --button-bg-hover: var(--brand-primary-hover);
   --button-text: #ffffff;
 }
 
+/* Optional "light" variant; default app starts in dark brand mode */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f7;
+  --text-primary: #231F20;
+  --text-secondary: #4A4647;
+  --border-color: #E5E7EB;
+  --button-bg: var(--brand-primary);
+  --button-bg-hover: var(--brand-primary-hover);
+  --button-text: #ffffff;
+}
+
+/* "dark" keeps the brand canvas */
 [data-theme="dark"] {
-  /* Dark theme colors */
-  --bg-primary: #1a1a1a;
-  --bg-secondary: #282c34;
+  --bg-primary: var(--bg-canvas);
+  --bg-secondary: var(--surface-subtle);
   --text-primary: #ffffff;
-  --text-secondary: #61dafb;
-  --border-color: #404040;
-  --button-bg: #0056b3;
+  --text-secondary: var(--text-secondary);
+  --border-color: var(--border-subtle);
+  --button-bg: var(--brand-primary);
+  --button-bg-hover: var(--brand-primary-hover);
   --button-text: #ffffff;
 }
 
@@ -29,76 +68,83 @@
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: var(--bg-secondary);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: var(--text-primary);
-  transition: background-color 0.3s ease;
-  position: relative;
-}
-
-.App-link {
-  color: var(--text-secondary);
-  transition: color 0.3s ease;
-}
-
-.theme-toggle {
-  position: absolute;
-  top: 20px;
-  right: 20px;
+/* Primary CTA button (brand) */
+.btn-primary {
   background-color: var(--button-bg);
   color: var(--button-text);
   border: none;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   padding: 10px 20px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-button-primary);
+}
+.btn-primary:hover { background-color: var(--button-bg-hover); }
+
+/* Theme toggle (reuse primary styling) */
+.theme-toggle {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-button-primary);
 }
 
-.theme-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-  opacity: 0.9;
+/* Header styles (translucent, sticky) */
+.header-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(35px);
+  -webkit-backdrop-filter: blur(35px);
+  background-color: rgba(35, 31, 32, 0.9);
+  border-bottom: 1px solid rgba(0,0,0,0.1);
 }
 
-.theme-toggle:active {
-  transform: translateY(0);
+/* Responsive Sidebar */
+.sidebar {
+  width: 260px;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+  color: var(--text-primary);
+  height: 100vh;
+  padding: 1rem;
+  box-sizing: border-box;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Mobile: hidden by default, slide in when open */
+@media (max-width: 767px) {
+  .sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    bottom: 0;
+    z-index: 60;
+    transition: left 0.25s ease;
   }
-  to {
-    transform: rotate(360deg);
+  .sidebar.open {
+    left: 0;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 55;
   }
 }
 
-/* Responsive design for mobile */
-@media (max-width: 768px) {
-  .theme-toggle {
-    top: 10px;
-    right: 10px;
-    padding: 8px 16px;
-    font-size: 12px;
+/* Desktop: static in layout */
+@media (min-width: 768px) {
+  .sidebar {
+    position: relative;
+    left: 0;
+    height: auto;
   }
 }

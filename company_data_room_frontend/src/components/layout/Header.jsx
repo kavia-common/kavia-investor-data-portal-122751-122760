@@ -1,71 +1,84 @@
 import React from 'react';
+import wordmark from '../../assets/brand/wordmark_logo.svg';
 
 /**
  * PUBLIC_INTERFACE
- * Header renders a minimal top navigation bar with KAVIA branding and a theme toggle.
+ * Header renders a KAVIA-branded top navigation bar with wordmark, theme toggle,
+ * and a mobile menu button to open the Sidebar.
  *
  * Props:
  * - theme: 'light' | 'dark' — current theme mode
  * - toggleTheme: () => void — toggles between light and dark themes
+ * - onMenuToggle?: () => void — toggles the sidebar on small screens
  *
  * Accessibility:
  * - Uses role="banner" on header
  * - Theme toggle button has ARIA label describing action
+ * - Mobile menu button is min 44x44 and has an accessible label
  */
-const brandColors = {
-  primary: '#0057B8',  // Kavia Blue
-  accent: '#FFD700',   // Kavia Gold
-  secondary: '#282C34' // Dark Slate
-};
-
 // PUBLIC_INTERFACE
-export default function Header({ theme, toggleTheme }) {
+export default function Header({ theme, toggleTheme, onMenuToggle }) {
   return (
     <header
       role="banner"
+      className="header-bar"
       style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0.75rem 1rem',
-        borderBottom: `2px solid ${brandColors.accent}`,
-        backgroundColor: 'var(--bg-secondary)',
+        gap: '0.75rem',
+        padding: '12px 16px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <span
-          aria-label="KAVIA logo"
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {/* Mobile menu button */}
+        <button
+          type="button"
+          onClick={onMenuToggle}
+          aria-label="Toggle navigation menu"
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: 6,
-            background: brandColors.primary,
-            display: 'inline-block',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 44,
+            height: 44,
+            minWidth: 44,
+            minHeight: 44,
+            background: 'transparent',
+            border: '1px solid rgba(255,255,255,0.1)',
+            borderRadius: 8,
+            color: 'var(--text-primary)',
+            cursor: 'pointer',
+          }}
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+
+        {/* Wordmark */}
+        <img
+          src={wordmark}
+          alt="KAVIA AI"
+          style={{
+            width: 138,
+            height: 34,
+            objectFit: 'contain',
+            display: 'block',
           }}
         />
-        <strong style={{ color: 'var(--text-primary)' }}>KAVIA Investor Data Room</strong>
       </div>
 
-      <button
-        className="theme-toggle"
-        onClick={toggleTheme}
-        aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
-        style={{
-          backgroundColor: brandColors.primary,
-          color: '#fff',
-          border: 'none',
-          borderRadius: 8,
-          padding: '8px 14px',
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: 'pointer',
-          transition: 'all 0.2s ease',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        }}
-      >
-        {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <button
+          className="theme-toggle"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          style={{ whiteSpace: 'nowrap' }}
+        >
+          {theme === 'light' ? '🌙 Dark' : '☀️ Light'}
+        </button>
+      </div>
     </header>
   );
 }

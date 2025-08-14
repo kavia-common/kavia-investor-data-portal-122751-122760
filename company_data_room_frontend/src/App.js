@@ -8,10 +8,19 @@ import Sidebar from './components/layout/Sidebar';
 
 /**
  * PUBLIC_INTERFACE
- * MainLayout composes the Sidebar and Header around the main page content.
- * It is a thin shell to wrap routed pages with baseline frame components.
+ * MainLayout composes the Sidebar and Header around the main page content,
+ * and manages the responsive sidebar open/close state on small screens.
+ *
+ * Props:
+ * - theme: 'light' | 'dark'
+ * - toggleTheme: () => void
  */
 function MainLayout({ children, theme, toggleTheme }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const closeSidebar = () => setSidebarOpen(false);
+  const toggleSidebar = () => setSidebarOpen((v) => !v);
+
   return (
     <div
       className="app-shell"
@@ -22,13 +31,14 @@ function MainLayout({ children, theme, toggleTheme }) {
         color: 'var(--text-primary)',
       }}
     >
-      <Sidebar />
+      <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-        <Header theme={theme} toggleTheme={toggleTheme} />
+        <Header theme={theme} toggleTheme={toggleTheme} onMenuToggle={toggleSidebar} />
         <main
           className="page-content"
           role="main"
           style={{ padding: '1.25rem', flex: 1, minWidth: 0 }}
+          onClick={closeSidebar}
         >
           {children}
         </main>
@@ -46,7 +56,8 @@ function MainLayout({ children, theme, toggleTheme }) {
  * - MainLayout shell (Header + Sidebar) wrapping routed content.
  */
 function App() {
-  const [theme, setTheme] = useState('light');
+  // Default to dark mode to align with KAVIA brand canvas background
+  const [theme, setTheme] = useState('dark');
 
   // Effect to apply theme to document element
   useEffect(() => {
