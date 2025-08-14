@@ -1,0 +1,186 @@
+/* Kavia Brand Tokens (see assets/style_guide.md) */
+:root {
+  --brand-primary: #F26A1B;
+  --brand-primary-hover: #E15E0D;
+  --brand-orange-2: #F4682C;
+  --brand-peach: #FF9358;
+  --brand-cream: #FDF7F2;
+
+  --bg-canvas: #231F20;
+  --bg-footer: #161314;
+  --surface-subtle: #332F30;
+  --surface-elevated: #37322F;
+
+  --text-primary: #FFFFFF;
+  --text-secondary: #DEDCDD;
+  --text-muted: #B0AEAD;
+
+  --border-subtle: #3A3533;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  --shadow-button-primary: inset 0px -2px 0px rgba(0, 0, 0, 0.75),
+                           0px 12px 24px -6px rgba(45, 32, 17, 0.3),
+                           0px 4px 8px rgba(45, 32, 17, 0.2),
+                           0px 1.5px 3px rgba(45, 32, 17, 0.2),
+                           0px 1px 1px rgba(45, 32, 17, 0.12);
+
+  /* App theme mapping */
+  --bg-primary: var(--bg-canvas);
+  --bg-secondary: var(--surface-subtle);
+  --border-color: var(--border-subtle);
+  --button-bg: var(--brand-primary);
+  --button-bg-hover: var(--brand-primary-hover);
+  --button-text: #ffffff;
+}
+
+/* Notifications Center (placeholder) */
+.notif-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 75;
+}
+
+.notif-drawer {
+  position: fixed;
+  top: 0;
+  right: -400px; /* hidden by default */
+  height: 100vh;
+  width: 360px;
+  max-width: 85vw;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border-left: 1px solid var(--border-color);
+  z-index: 80;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.35);
+  display: flex;
+  flex-direction: column;
+  transition: right 0.25s ease;
+}
+
+.notif-drawer.open {
+  right: 0;
+}
+
+@media (max-width: 767px) {
+  .notif-drawer {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+/* Optional "light" variant; default app starts in dark brand mode */
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f7f7f7;
+  --text-primary: #231F20;
+  --text-secondary: #4A4647;
+  --border-color: #E5E7EB;
+  --button-bg: var(--brand-primary);
+  --button-bg-hover: var(--brand-primary-hover);
+  --button-text: #ffffff;
+}
+
+/* "dark" keeps the brand canvas */
+[data-theme="dark"] {
+  --bg-primary: var(--bg-canvas);
+  --bg-secondary: var(--surface-subtle);
+  --text-primary: #ffffff;
+  --text-secondary: var(--text-secondary);
+  --border-color: var(--border-subtle);
+  --button-bg: var(--brand-primary);
+  --button-bg-hover: var(--brand-primary-hover);
+  --button-text: #ffffff;
+}
+
+.App {
+  text-align: center;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Primary CTA button (brand) */
+.btn-primary {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-button-primary);
+}
+.btn-primary:hover { background-color: var(--button-bg-hover); }
+
+/* Theme toggle (reuse primary styling) */
+.theme-toggle {
+  background-color: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 8px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: var(--shadow-button-primary);
+}
+
+/* Header styles (translucent, sticky) */
+.header-bar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(35px);
+  -webkit-backdrop-filter: blur(35px);
+  background-color: rgba(35, 31, 32, 0.9);
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+
+/* Responsive Sidebar */
+.sidebar {
+  width: 260px;
+  background-color: var(--bg-primary);
+  border-right: 1px solid var(--border-color);
+  color: var(--text-primary);
+  height: 100vh;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+/* Mobile: hidden by default, slide in when open */
+@media (max-width: 767px) {
+  .sidebar {
+    position: fixed;
+    left: -280px;
+    top: 0;
+    bottom: 0;
+    z-index: 60;
+    transition: left 0.25s ease;
+  }
+  .sidebar.open {
+    left: 0;
+  }
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 55;
+  }
+}
+
+/* Desktop: static in layout */
+@media (min-width: 768px) {
+  .sidebar {
+    position: relative;
+    left: 0;
+    height: auto;
+  }
+}
