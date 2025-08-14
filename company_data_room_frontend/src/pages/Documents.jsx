@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import useDocuments from '../hooks/useDocuments';
 import DocumentList from '../components/documents/DocumentList';
 import UploadForm from '../components/documents/UploadForm';
+import { useNavigate } from 'react-router-dom';
 
 /**
  * PUBLIC_INTERFACE
@@ -12,11 +13,12 @@ import UploadForm from '../components/documents/UploadForm';
  * an upload form that refreshes the list on success.
  *
  * - Uses useDocuments(tier) to fetch items from metadata table or storage fallback.
- * - Click-to-view requests a short-lived signed URL and opens in a new tab.
+ * - Click-to-view navigates to an inline viewer route where a short-lived signed URL is fetched.
  * - Founders/admins can upload/delete; investors get read-only access.
  */
 export default function Documents() {
   const { roleClaims } = useAuth();
+  const navigate = useNavigate();
 
   const [selectedTier, setSelectedTier] = useState('public');
 
@@ -109,6 +111,13 @@ export default function Documents() {
         onRefresh={refresh}
         onRemove={removeDocument}
         getSignedUrl={getSignedUrl}
+        onOpenDocument={(doc) => {
+          // Navigate to the inline viewer with URL-encoded storage path
+          const encodedPath = encodeURIComponent(doc?.path || '');
+          if (encodedPath) {
+            navigate(`/documents/${encodedPath}`);
+          }
+        }}
       />
 
       <footer style={{ fontSize: 14, opacity: 0.8 }}>
