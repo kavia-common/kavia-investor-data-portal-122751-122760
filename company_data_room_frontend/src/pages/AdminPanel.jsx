@@ -2,13 +2,15 @@ import React, { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import useRequests from '../hooks/useRequests';
 import useNotifications from '../hooks/useNotifications';
+import useAnalytics from '../hooks/useAnalytics';
 
 /**
  * PUBLIC_INTERFACE
  * AdminPanel
  *
- * Admin panel includes access-request management (approve/deny/revoke)
- * and a recent activity/notifications feed tailored to Admin role.
+ * Admin panel includes access-request management (approve/deny/revoke),
+ * analytics widgets (views, unique viewers, per-tier breakdown, top docs),
+ * recent viewers, and a recent activity/notifications feed with CSV export.
  */
 export default function AdminPanel() {
   const { user, roleClaims } = useAuth();
@@ -32,6 +34,16 @@ export default function AdminPanel() {
     markAllRead: markAllNotifsRead,
     markRead: markNotifRead,
   } = useNotifications();
+
+  const {
+    loading: aLoading,
+    error: aError,
+    views,
+    requests,
+    activity,
+    recentViews,
+    refresh: refreshAnalytics,
+  } = useAnalytics({ timeRangeDays: 30 });
 
   const list = useMemo(() => allRequests || [], [allRequests]);
 
@@ -191,6 +203,54 @@ export default function AdminPanel() {
     );
   }
 
+  // CSV export for audit/activity log (analytics-based)
+  function downloadActivityCSV() {
+    const rows = Array.isArray(activity?.items) ? activity.items : [];
+    const header = [
+      'id',
+      'type',
+      'title',
+      'body',
+      'created_at',
+      'status',
+      'tier',
+      'actor_user_id',
+      'target_user_id',
+      'target_email',
+    ];
+    const csvEscape = (v) => {
+      if (v === null || v === undefined) return '';
+      const s = String(v).replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const dataRows = rows.map((r) => [
+      r.id,
+      r.type,
+      r.title,
+      r.body,
+      r.createdAt,
+      r.status,
+      r.tier,
+      r.actorUserId,
+      r.targetUserId,
+      r.targetEmail,
+    ]);
+    const csv =
+      `${header.map(csvEscape).join(',')}\n` +
+      dataRows.map((row) => row.map(csvEscape).join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const ts = new Date().toISOString().replace(/[:.]/g, '-');
+    link.href = url;
+    link.setAttribute('download', `kavia_audit_log_${ts}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
   const recentNotifs = useMemo(() => {
     const items = Array.isArray(notifItems) ? notifItems.slice() : [];
     items.sort((a, b) => {
@@ -200,6 +260,28 @@ export default function AdminPanel() {
     });
     return items.slice(0, 10);
   }, [notifItems]);
+
+  function StatCard({ label, value, sublabel }) {
+    return (
+      <div
+        style={{
+          border: '1px solid var(--border-color)',
+          background: 'var(--bg-secondary)',
+          borderRadius: 12,
+          padding: '12px',
+          display: 'grid',
+          gap: 6,
+          minWidth: 0,
+        }}
+      >
+        <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>
+        <strong style={{ fontSize: 22, lineHeight: 1 }}>{value}</strong>
+        {sublabel && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sublabel}</span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <section
@@ -225,18 +307,177 @@ export default function AdminPanel() {
           border: '1px solid var(--border-color)',
           borderRadius: 12,
           padding: '1rem',
+          display: 'grid',
+          gap: 12,
         }}
       >
-        <p style={{ margin: 0 }}>
-          Welcome{user?.email ? `, ${user.email}` : ''}. Operations: flagged content review,
-          analytics, user management, activity logs — and access request management below.
-        </p>
-        <div style={{ marginTop: 10, fontSize: 14, opacity: 0.8 }}>
-          <strong>Your roles:</strong>{' '}
-          {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0 ? roleClaims.roles.join(', ') : 'none'}
+        <div>
+          <p style={{ margin: 0 }}>
+            Welcome{user?.email ? `, ${user.email}` : ''}. Operations: flagged content review,
+            analytics, user management, activity logs — and access request management below.
+          </p>
+          <div style={{ marginTop: 10, fontSize: 14, opacity: 0.8 }}>
+            <strong>Your roles:</strong>{' '}
+            {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0 ? roleClaims.roles.join(', ') : 'none'}
+          </div>
         </div>
 
-        <div style={{ marginTop: 14, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {/* Analytics Overview */}
+        <section aria-label="Analytics Overview" style={{ display: 'grid', gap: 10 }}>
+          <header style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ margin: 0, fontSize: 18 }}>Analytics Overview</h2>
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
+              {aLoading ? 'Loading…' : ''}
+              {aError ? ` • ${aError.message || 'Analytics error'}` : ''}
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+              <button
+                type="button"
+                onClick={() => refreshAnalytics()}
+                className="theme-toggle"
+                aria-label="Refresh analytics"
+                style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                title="Refresh analytics"
+              >
+                Refresh Analytics
+              </button>
+            </div>
+          </header>
+
+          {/* Counters */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 10,
+            }}
+          >
+            <StatCard label="Total Views (30d)" value={views?.totalViews ?? 0} />
+            <StatCard label="Unique Viewers" value={views?.uniqueViewers ?? 0} />
+            <StatCard label="Pending Requests" value={requests?.pending ?? 0} />
+            <StatCard
+              label="Views by Tier"
+              value={`${views?.byTier?.public ?? 0} / ${views?.byTier?.qualified ?? 0} / ${views?.byTier?.nda ?? 0}`}
+              sublabel="Public / Qualified / NDA"
+            />
+          </div>
+
+          {/* Top Documents */}
+          <div
+            style={{
+              border: '1px solid var(--border-color)',
+              borderRadius: 12,
+              overflow: 'hidden',
+              background: 'transparent',
+            }}
+          >
+            <div style={{ padding: '10px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+              <strong>Top Documents</strong>
+            </div>
+            <div style={{ display: 'grid', gap: 8, padding: '10px 12px' }}>
+              {(views?.topDocuments || []).length === 0 ? (
+                <span style={{ color: 'var(--text-secondary)', fontSize: 13, opacity: 0.9 }}>No document views yet.</span>
+              ) : (
+                (views.topDocuments || []).map((d) => (
+                  <div
+                    key={`${d.path}-${d.last_viewed_at || ''}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 8,
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      background: 'var(--bg-secondary)',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <strong
+                          title={d.path}
+                          style={{
+                            fontSize: 14,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {d.path}
+                        </strong>
+                        <TierChip tier={d.tier} />
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        Last viewed: {d.last_viewed_at ? new Date(d.last_viewed_at).toLocaleString() : '—'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Views</span>
+                      <strong>{d.views}</strong>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Unique</span>
+                      <strong>{d.unique_viewers}</strong>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Recent Viewers */}
+          <div
+            style={{
+              border: '1px solid var(--border-color)',
+              borderRadius: 12,
+              overflow: 'hidden',
+              background: 'transparent',
+            }}
+          >
+            <div style={{ padding: '10px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border-color)' }}>
+              <strong>Recent Viewers</strong>
+            </div>
+            <div style={{ display: 'grid', gap: 8, padding: '10px 12px' }}>
+              {(recentViews || []).length === 0 ? (
+                <span style={{ color: 'var(--text-secondary)', fontSize: 13, opacity: 0.9 }}>No recent viewers.</span>
+              ) : (
+                (recentViews || []).map((v) => (
+                  <div
+                    key={v.id || `${v.path}-${v.createdAt || ''}-${v.email || v.userId || 'anon'}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr auto',
+                      gap: 8,
+                      border: '1px solid var(--border-color)',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      background: 'var(--bg-secondary)',
+                    }}
+                  >
+                    <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <strong
+                          style={{
+                            fontSize: 14,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                          title={v.path}
+                        >
+                          {v.email || v.userId || 'Anon'} viewed {v.path || 'document'}
+                        </strong>
+                        <TierChip tier={v.tier} />
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                        {v.createdAt ? new Date(v.createdAt).toLocaleString() : ''}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </section>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button
             type="button"
             onClick={() => refreshAll()}
@@ -400,6 +641,21 @@ export default function AdminPanel() {
             <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
               {notifUnread} unread
             </span>
+            {/* Activity summary quick stats from analytics */}
+            <span
+              title="Activity summary (by type)"
+              style={{
+                fontSize: 12,
+                color: 'var(--text-secondary)',
+                opacity: 0.9,
+                marginLeft: 8,
+              }}
+            >
+              {Object.entries(activity?.summary?.byType || {})
+                .map(([k, v]) => `${k}: ${v}`)
+                .slice(0, 4)
+                .join(' • ')}
+            </span>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
               <button
                 type="button"
@@ -418,6 +674,15 @@ export default function AdminPanel() {
                 disabled={notifUnread === 0}
               >
                 Mark all as read
+              </button>
+              <button
+                type="button"
+                onClick={downloadActivityCSV}
+                className="theme-toggle"
+                style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                title="Download audit log CSV"
+              >
+                Download Audit CSV
               </button>
             </div>
           </header>

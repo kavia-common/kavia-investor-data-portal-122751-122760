@@ -200,9 +200,15 @@ export default function useAnalytics(options = {}) {
     byTier: { public: 0, qualified: 0, nda: 0 },
     topDocuments: [],
   });
+  // Keep recent raw view rows for \"Recent Viewers\" UI
+  const [viewsRaw, setViewsRaw] = useState([]);
   const [pendingRequests, setPendingRequests] = useState(0);
   const [activityItems, setActivityItems] = useState([]);
-  const [activitySummary, setActivitySummary] = useState({ byType: {}, byTier: { public: 0, qualified: 0, nda: 0 }, total: 0 });
+  const [activitySummary, setActivitySummary] = useState({
+    byType: {},
+    byTier: { public: 0, qualified: 0, nda: 0 },
+    total: 0,
+  });
 
   const mountedRef = useRef(true);
   useEffect(() => {
@@ -222,11 +228,20 @@ export default function useAnalytics(options = {}) {
 
     try {
       if (!supabase) {
-        const softError = new Error('Supabase is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_KEY.');
+        const softError = new Error(
+          'Supabase is not configured. Set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_KEY.'
+        );
         if (mountedRef.current) {
           setError(softError);
           // Provide empty aggregates to keep UI stable
-          setViewsAgg((v) => ({ ...v, totalViews: 0, uniqueViewers: 0, byTier: { public: 0, qualified: 0, nda: 0 }, topDocuments: [] }));
+          setViewsAgg((v) => ({
+            ...v,
+            totalViews: 0,
+            uniqueViewers: 0,
+            byTier: { public: 0, qualified: 0, nda: 0 },
+            topDocuments: [],
+          }));
+          setViewsRaw([]);
           setPendingRequests(0);
           setActivityItems([]);
           setActivitySummary({ byType: {}, byTier: { public: 0, qualified: 0, nda: 0 }, total: 0 });
@@ -246,7 +261,6 @@ export default function useAnalytics(options = {}) {
               .limit(1000);
             if (err) {
               if (!isTableMissingError(err)) {
-                // Non-missing error; log in dev but continue
                 if (process.env.NODE_ENV !== 'production') {
                   // eslint-disable-next-line no-console
                   console.warn('[useAnalytics] document_views error:', err.message);
@@ -287,7 +301,7 @@ export default function useAnalytics(options = {}) {
         })(),
         activity: (async () => {
           try {
-            // Fetch recent notifications; RLS may limit visibility. This still works for founder/admin if policies allow.
+            // Fetch recent notifications; RLS may limit visibility.
             const { data, error: err } = await supabase
               .from(TABLE_NOTIFICATIONS)
               .select('*')
@@ -309,7 +323,11 @@ export default function useAnalytics(options = {}) {
         })(),
       };
 
-      const [viewRows, pendingCount, activityRows] = await Promise.all([tasks.views, tasks.requests, tasks.activity]);
+      const [viewRows, pendingCount, activityRows] = await Promise.all([
+        tasks.views,
+        tasks.requests,
+        tasks.activity,
+      ]);
 
       // Compute aggregates
       const vAgg = aggregateViews(viewRows);
@@ -317,6 +335,7 @@ export default function useAnalytics(options = {}) {
 
       if (mountedRef.current) {
         setViewsAgg(vAgg);
+        setViewsRaw(Array.isArray(viewRows) ? viewRows : []);
         setPendingRequests(pendingCount);
         setActivityItems(activityRows);
         setActivitySummary(aSummary);
@@ -344,6 +363,8 @@ export default function useAnalytics(options = {}) {
     views: viewsAgg,
     requests: { pending: pendingRequests },
     activity: { items: activityItems, summary: activitySummary },
+    // Recent raw view rows for \"Recent Viewers\" UI
+    recentViews: viewsRaw.slice(0, 12),
     // PUBLIC_INTERFACE
     refresh,
   };
