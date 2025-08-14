@@ -9,6 +9,8 @@ import Documents from './pages/Documents';
 import DocumentViewer from './pages/DocumentViewer';
 import AuthCallback from './pages/auth/Callback';
 import AuthError from './pages/auth/Error';
+import DocumentList from './components/documents/DocumentList';
+import useDocuments from './hooks/useDocuments';
 
 /**
  * PUBLIC_INTERFACE
@@ -99,12 +101,63 @@ export function AppRoutes() {
 // PUBLIC_INTERFACE
 export function Home() {
   /**
-   * Minimal landing view that preserves the 'Learn React' link for existing tests.
+   * Public landing page that shows tier-1 "Public" documents fetched from Supabase.
+   * Anyone can view/download these without authentication or NDA.
+   * The 'Learn React' link is preserved for existing tests.
    */
+  const { items, loading, error, getSignedUrl, refresh } = useDocuments('public');
+
   return (
-    <main className="container" style={{ padding: '2rem' }}>
-      <h1 className="title">Welcome to KAVIA Investor Data Room</h1>
-      <p className="description">This is a placeholder home page. Use the navigation to explore routes.</p>
+    <main className="container" style={{ padding: '2rem', display: 'grid', gap: '1rem' }}>
+      <header>
+        <h1 className="title" style={{ margin: 0 }}>Welcome to KAVIA Investor Data Room</h1>
+        <p className="description" style={{ marginTop: 6, opacity: 0.9 }}>
+          Explore our public materials below. Detailed content is available to qualified and NDA-signed investors.
+        </p>
+      </header>
+
+      {/* Public documents section — open in new tab using signed URL; no auth required */}
+      <section
+        aria-label="Public Documents"
+        style={{
+          display: 'grid',
+          gap: 12,
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 12,
+          padding: '1rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <strong style={{ fontSize: 18 }}>Public Documents</strong>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
+            Examples: Pitch Deck, One Pager, General Overview
+          </span>
+          <div style={{ marginLeft: 'auto' }}>
+            <button
+              type="button"
+              className="theme-toggle"
+              style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+              onClick={refresh}
+              aria-label="Refresh public documents"
+              title="Refresh"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <DocumentList
+          tier="public"
+          items={items}
+          loading={loading}
+          error={error}
+          onRefresh={refresh}
+          getSignedUrl={getSignedUrl}
+        />
+      </section>
+
+      {/* Keep this link to satisfy existing CRA tests */}
       <a
         className="App-link"
         href="https://reactjs.org"
