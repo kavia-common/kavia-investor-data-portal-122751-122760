@@ -1,18 +1,63 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
+import useRequests from '../hooks/useRequests';
 
 /**
  * PUBLIC_INTERFACE
  * AdminPanel
- * 
- * Renders a basic placeholder admin panel view intended only for users with the "admin" role.
- * Displays the authenticated user's email (if any) and their role claims for context.
- * 
- * Returns:
- * - JSX element: basic layout with heading, role visibility note, and user/role info
+ *
+ * Admin panel includes a simple access-request management view (approve/deny/revoke).
  */
 export default function AdminPanel() {
   const { user, roleClaims } = useAuth();
+  const {
+    allRequests,
+    loadingAll,
+    errorAll,
+    approveRequest,
+    denyRequest,
+    revokeRequest,
+    refreshAll,
+    counts,
+  } = useRequests();
+
+  const list = useMemo(() => allRequests || [], [allRequests]);
+
+  function StatusBadge({ status = 'pending' }) {
+    const map = {
+      approved: '#31C48D',
+      denied: '#dc3545',
+      revoked: '#b02a37',
+      withdrawn: '#6c757d',
+      pending: '#F4B25A',
+    };
+    const color = map[String(status).toLowerCase()] || '#F4B25A';
+    return (
+      <span
+        style={{
+          fontSize: 11,
+          padding: '2px 6px',
+          borderRadius: 999,
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          color,
+          fontWeight: 700,
+        }}
+        title={`Status: ${status}`}
+      >
+        {String(status).toUpperCase()}
+      </span>
+    );
+  }
+
+  async function doAction(type, id) {
+    if (!id) return;
+    let reason = '';
+    if (type !== 'approve') reason = window.prompt('Optional reason:', '') || '';
+    if (type === 'approve') await approveRequest(id, { reason: '' });
+    else if (type === 'deny') await denyRequest(id, { reason });
+    else if (type === 'revoke') await revokeRequest(id, { reason });
+  }
 
   return (
     <section
@@ -41,13 +86,156 @@ export default function AdminPanel() {
         }}
       >
         <p style={{ margin: 0 }}>
-          Welcome{user?.email ? `, ${user.email}` : ''}. This is a placeholder for operations: flagged content review,
-          analytics, user management, and activity logs.
+          Welcome{user?.email ? `, ${user.email}` : ''}. Operations: flagged content review,
+          analytics, user management, activity logs — and access request management below.
         </p>
         <div style={{ marginTop: 10, fontSize: 14, opacity: 0.8 }}>
-          <strong>Your roles:</strong> {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0 ? roleClaims.roles.join(', ') : 'none'}
+          <strong>Your roles:</strong>{' '}
+          {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0 ? roleClaims.roles.join(', ') : 'none'}
+        </div>
+
+        <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => refreshAll()}
+            className="theme-toggle"
+            aria-label="Refresh requests"
+            style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+          >
+            Refresh
+          </button>
+          <span style={{ fontSize: 12, color: 'var(--text-secondary)', opacity: 0.9 }}>
+            Totals • All: {counts?.total ?? (list?.length || 0)} • Pending: {counts?.pending ?? 0} • Approved:{' '}
+            {counts?.approved ?? 0}
+          </span>
         </div>
       </article>
+
+      <section aria-label="All Access Requests" style={{ display: 'grid', gap: 8 }}>
+        {loadingAll && (
+          <div aria-busy="true" style={{ color: 'var(--text-secondary)', fontSize: 14, opacity: 0.9 }}>
+            Loading requests…
+          </div>
+        )}
+        {errorAll && (
+          <div
+            role="alert"
+            style={{
+              color: 'var(--text-primary)',
+              background: 'rgba(220, 53, 69, 0.12)',
+              border: '1px solid rgba(220, 53, 69, 0.3)',
+              borderRadius: 10,
+              padding: '10px 12px',
+            }}
+          >
+            {errorAll?.message || String(errorAll)}
+          </div>
+        )}
+
+        <div
+          role="list"
+          style={{
+            display: 'grid',
+            gap: 10,
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: 12,
+            padding: '0.75rem',
+          }}
+        >
+          {(list || []).length === 0 && !loadingAll ? (
+            <div
+              style={{
+                textAlign: 'center',
+                color: 'var(--text-secondary)',
+                opacity: 0.85,
+                border: '1px dashed var(--border-color)',
+                borderRadius: 10,
+                padding: '16px 12px',
+              }}
+            >
+              No access requests submitted yet.
+            </div>
+          ) : (
+            (list || []).map((req) => {
+              const isPending = String(req.status || '').toLowerCase() === 'pending';
+              const isApproved = String(req.status || '').toLowerCase() === 'approved';
+              return (
+                <div
+                  key={req.id}
+                  role="listitem"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr auto',
+                    gap: 10,
+                    padding: '10px 12px',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 10,
+                    background: 'transparent',
+                  }}
+                >
+                  <div style={{ display: 'grid', gap: 4, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <strong style={{ fontSize: 14 }}>
+                        {req.email || 'Unknown user'} • Tier:{' '}
+                        {String(req.tier || '').toUpperCase()}
+                      </strong>
+                      <StatusBadge status={req.status} />
+                      <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
+                        {req.createdAt ? new Date(req.createdAt).toLocaleString() : ''}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      <span>Organization: {req.organization || '-'}</span>
+                      {req.notes && (
+                        <span style={{ marginLeft: 10, opacity: 0.9 }}>• Notes: {req.notes}</span>
+                      )}
+                      {req.reason && (
+                        <span style={{ marginLeft: 10, opacity: 0.9 }}>• Reason: {req.reason}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {isPending && (
+                      <>
+                        <button
+                          type="button"
+                          className="theme-toggle"
+                          onClick={() => doAction('approve', req.id)}
+                          style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                          title="Approve request"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="theme-toggle"
+                          onClick={() => doAction('deny', req.id)}
+                          style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                          title="Deny request"
+                        >
+                          Deny
+                        </button>
+                      </>
+                    )}
+                    {isApproved && (
+                      <button
+                        type="button"
+                        className="theme-toggle"
+                        onClick={() => doAction('revoke', req.id)}
+                        style={{ padding: '6px 10px', fontSize: 12, height: 'auto' }}
+                        title="Revoke access"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
     </section>
   );
 }

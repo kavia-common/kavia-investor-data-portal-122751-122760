@@ -1,37 +1,42 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import useRequests from '../../hooks/useRequests';
 
 /**
  * PUBLIC_INTERFACE
  * AccessRequestModal
  *
- * A presentational (UI-only) modal for investors to request access to higher-tier materials.
- * This component is styled with the KAVIA brand tokens (see App.css) and contains sample fields:
- * - Access Tier (select)
- * - Organization (text)
- * - Reason/Notes (textarea)
- * - Qualified Investor (checkbox)
+ * A modal for investors to request access to higher-tier materials, wired to the useRequests hook.
  *
  * Behavior:
  * - Renders as a centered dialog with a dark translucent backdrop.
  * - Pressing Escape or clicking the backdrop closes the modal via onClose.
- * - Submit handler is stubbed; it prevents default and calls onSubmit with sample data.
+ * - Submit handler calls useRequests().submitRequest with { tier, organization, notes, qualified }.
  *
  * Props:
  * - isOpen: boolean — controls visibility
  * - onClose: () => void — called to close the modal
- * - onSubmit?: (payload) => void — optional stubbed submit callback
+ * - onSubmit?: (payload | { data, error }) => void — optional callback after submit attempt
  */
 export default function AccessRequestModal({
   isOpen = false,
   onClose = () => {},
-  onSubmit = () => {},
+  onSubmit = null,
 }) {
+  const { canSubmit, submitting, errorSubmit, submitRequest } = useRequests();
+
   const [form, setForm] = useState({
     tier: 'qualified',
     organization: '',
     notes: '',
     qualified: false,
   });
+
+  // reset when opened
+  useEffect(() => {
+    if (isOpen) {
+      setForm((prev) => ({ ...prev }));
+    }
+  }, [isOpen]);
 
   // Close on Escape
   useEffect(() => {
@@ -43,6 +48,11 @@ export default function AccessRequestModal({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
 
+  // Compute submit capability via hook before any early return to satisfy Rules of Hooks.
+  const canClickSubmit = useMemo(() => {
+    return Boolean(form.organization) && canSubmit && !submitting;
+  }, [form.organization, canSubmit, submitting]);
+
   if (!isOpen) return null;
 
   function handleChange(e) {
@@ -50,14 +60,30 @@ export default function AccessRequestModal({
     setForm((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    // Stub: In a future step, connect to backend/service
-    const payload = { ...form, submittedAt: new Date().toISOString() };
-    // eslint-disable-next-line no-console
-    console.log('[AccessRequestModal] submit payload:', payload);
-    onSubmit(payload);
-    onClose();
+    if (!canClickSubmit) return;
+
+    const payload = {
+      tier: form.tier,
+      organization: form.organization,
+      notes: form.notes,
+      qualified: form.qualified,
+    };
+    const { data, error } = await submitRequest(payload);
+
+    // Allow parent to react (e.g., toast)
+    if (typeof onSubmit === 'function') {
+      try {
+        onSubmit({ data, error, payload });
+      } catch {
+        // ignore consumer errors
+      }
+    }
+
+    if (!error) {
+      onClose();
+    }
   }
 
   function stopProp(e) {
@@ -150,6 +176,23 @@ export default function AccessRequestModal({
           </header>
 
           <form onSubmit={handleSubmit} style={{ padding: '1rem', display: 'grid', gap: 12 }}>
+            {!canSubmit && (
+              <div
+                role="note"
+                style={{
+                  color: 'var(--text-primary)',
+                  background: 'rgba(255,147,88,0.10)',
+                  border: '1px solid rgba(255,147,88,0.35)',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 13,
+                }}
+              >
+                You currently don’t have permission to submit access requests. Please sign in as an
+                Investor or contact the administrator.
+              </div>
+            )}
+
             <div style={{ display: 'grid', gap: 6 }}>
               <label htmlFor="tier" style={{ fontWeight: 600 }}>
                 Access Tier
@@ -159,6 +202,7 @@ export default function AccessRequestModal({
                 name="tier"
                 value={form.tier}
                 onChange={handleChange}
+                disabled={submitting}
                 style={{
                   padding: '0.6rem 0.7rem',
                   borderRadius: 8,
@@ -186,6 +230,7 @@ export default function AccessRequestModal({
                 value={form.organization}
                 onChange={handleChange}
                 required
+                disabled={submitting}
                 style={{
                   padding: '0.6rem 0.7rem',
                   borderRadius: 8,
@@ -208,6 +253,7 @@ export default function AccessRequestModal({
                 placeholder="Tell us briefly why you need access."
                 value={form.notes}
                 onChange={handleChange}
+                disabled={submitting}
                 style={{
                   padding: '0.6rem 0.7rem',
                   borderRadius: 8,
@@ -237,11 +283,28 @@ export default function AccessRequestModal({
                 type="checkbox"
                 checked={form.qualified}
                 onChange={handleChange}
+                disabled={submitting}
               />
               <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
                 I confirm I am a Qualified Investor (for applicable tiers).
               </span>
             </label>
+
+            {errorSubmit && (
+              <div
+                role="alert"
+                style={{
+                  color: 'var(--text-primary)',
+                  background: 'rgba(220, 53, 69, 0.12)',
+                  border: '1px solid rgba(220, 53, 69, 0.3)',
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  fontSize: 13,
+                }}
+              >
+                {errorSubmit?.message || String(errorSubmit)}
+              </div>
+            )}
 
             <div
               style={{
@@ -258,6 +321,7 @@ export default function AccessRequestModal({
                 onClick={onClose}
                 aria-label="Cancel"
                 className="theme-toggle"
+                disabled={submitting}
                 style={{
                   background: 'transparent',
                   border: '1px solid rgba(255,255,255,0.1)',
@@ -269,9 +333,15 @@ export default function AccessRequestModal({
               <button
                 type="submit"
                 className="btn-primary"
-                style={{ paddingInline: 16, fontWeight: 600 }}
+                disabled={!canClickSubmit}
+                aria-busy={submitting}
+                style={{
+                  paddingInline: 16,
+                  fontWeight: 600,
+                  opacity: canClickSubmit ? 1 : 0.85,
+                }}
               >
-                Submit Request
+                {submitting ? 'Submitting…' : 'Submit Request'}
               </button>
             </div>
           </form>
