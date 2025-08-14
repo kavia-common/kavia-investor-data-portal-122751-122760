@@ -1,5 +1,6 @@
 import React from 'react';
 import { Routes, Route } from 'react-router-dom';
+import Login from './pages/Login';
 
 /**
  * PUBLIC_INTERFACE
@@ -10,6 +11,7 @@ import { Routes, Route } from 'react-router-dom';
  * - "/"          -> Home (default landing)
  * - "/dashboard" -> Dashboard (placeholder)
  * - "/about"     -> About (placeholder)
+ * - "/login"     -> Login page (magic link authentication)
  * - "*"          -> NotFound (fallback)
  */
 export function AppRoutes() {
@@ -18,6 +20,7 @@ export function AppRoutes() {
       <Route path="/" element={<Home />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/about" element={<About />} />
+      <Route path="/login" element={<Login />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
