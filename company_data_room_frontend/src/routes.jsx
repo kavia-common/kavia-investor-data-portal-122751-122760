@@ -7,6 +7,8 @@ import FounderDashboard from './pages/FounderDashboard';
 import AdminPanel from './pages/AdminPanel';
 import Documents from './pages/Documents';
 import DocumentViewer from './pages/DocumentViewer';
+import AuthCallback from './pages/auth/Callback';
+import AuthError from './pages/auth/Error';
 
 /**
  * PUBLIC_INTERFACE
@@ -87,6 +89,8 @@ export function AppRoutes() {
 
       <Route path="/about" element={<About />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/auth/error" element={<AuthError />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

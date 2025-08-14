@@ -90,6 +90,21 @@ export default function DocumentViewer() {
         url += hideUiParams;
       }
       setViewerUrl(url);
+
+      // Best-effort: record a view event for analytics if table exists
+      try {
+        await supabase
+          .from('document_views')
+          .insert({
+            path: storagePath,
+            tier,
+            user_id: user?.id || null,
+            email: user?.email || null,
+            created_at: new Date().toISOString(),
+          });
+      } catch {
+        // ignore failures (table may be missing / RLS)
+      }
     } catch (e) {
       setError(e);
     } finally {

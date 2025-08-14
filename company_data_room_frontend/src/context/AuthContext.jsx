@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { getURL } from '../utils/getURL';
 
 /**
  * PUBLIC_INTERFACE
@@ -186,7 +187,7 @@ export function AuthProvider({ children }) {
       }
       return { data: null, error };
     }
-    const redirectTo = process.env.REACT_APP_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : undefined);
+    const redirectTo = `${getURL()}auth/callback`;
     return supabase.auth.signInWithOtp({
       email,
       options: {
