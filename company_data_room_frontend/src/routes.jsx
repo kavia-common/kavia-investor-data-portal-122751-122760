@@ -2,23 +2,35 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import InvestorDashboard from './pages/InvestorDashboard';
+import FounderDashboard from './pages/FounderDashboard';
+import AdminPanel from './pages/AdminPanel';
+import Documents from './pages/Documents';
+import DocumentViewer from './pages/DocumentViewer';
 
 /**
  * PUBLIC_INTERFACE
  * AppRoutes configures the base client-side routes for the application.
- * This is a minimal setup to enable navigation between placeholder views.
- * 
+ * It includes protected routes for different roles and keeps placeholder pages
+ * to satisfy existing tests (the Home page preserves the "Learn React" link).
+ *
  * Routes:
- * - "/"          -> Home (default landing)
- * - "/dashboard" -> Dashboard (placeholder)
- * - "/about"     -> About (placeholder)
- * - "/login"     -> Login page (magic link authentication)
- * - "*"          -> NotFound (fallback)
+ * - "/"                         -> Home (default landing)
+ * - "/dashboard"                -> Dashboard (placeholder; any authenticated role)
+ * - "/dashboard/investor"       -> InvestorDashboard (investor/admin)
+ * - "/dashboard/founder"        -> FounderDashboard (founder/admin)
+ * - "/documents"                -> Documents (investor/founder/admin)
+ * - "/documents/:id"            -> DocumentViewer (investor/founder/admin)
+ * - "/admin"                    -> AdminPanel (admin only)
+ * - "/about"                    -> About (placeholder)
+ * - "/login"                    -> Login page (magic link authentication)
+ * - "*"                         -> NotFound (fallback)
  */
 export function AppRoutes() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+
       <Route
         path="/dashboard"
         element={
@@ -27,6 +39,52 @@ export function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      <Route
+        path="/dashboard/investor"
+        element={
+          <ProtectedRoute requiredRoles={['investor', 'admin']}>
+            <InvestorDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/dashboard/founder"
+        element={
+          <ProtectedRoute requiredRoles={['founder', 'admin']}>
+            <FounderDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/documents"
+        element={
+          <ProtectedRoute requiredRoles={['investor', 'founder', 'admin']}>
+            <Documents />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/documents/:id"
+        element={
+          <ProtectedRoute requiredRoles={['investor', 'founder', 'admin']}>
+            <DocumentViewer />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin"
+        element={
+          <ProtectedRoute requiredRoles={['admin']}>
+            <AdminPanel />
+          </ProtectedRoute>
+        }
+      />
+
       <Route path="/about" element={<About />} />
       <Route path="/login" element={<Login />} />
       <Route path="*" element={<NotFound />} />
@@ -36,7 +94,9 @@ export function AppRoutes() {
 
 // PUBLIC_INTERFACE
 export function Home() {
-  /** Minimal landing view that preserves the 'Learn React' link for existing tests. */
+  /**
+   * Minimal landing view that preserves the 'Learn React' link for existing tests.
+   */
   return (
     <main className="container" style={{ padding: '2rem' }}>
       <h1 className="title">Welcome to KAVIA Investor Data Room</h1>
@@ -55,7 +115,9 @@ export function Home() {
 
 // PUBLIC_INTERFACE
 export function Dashboard() {
-  /** Placeholder dashboard page. */
+  /**
+   * Placeholder dashboard page.
+   */
   return (
     <main className="container" style={{ padding: '2rem' }}>
       <h1 className="title">Dashboard</h1>
@@ -66,7 +128,9 @@ export function Dashboard() {
 
 // PUBLIC_INTERFACE
 export function About() {
-  /** Placeholder about page. */
+  /**
+   * Placeholder about page.
+   */
   return (
     <main className="container" style={{ padding: '2rem' }}>
       <h1 className="title">About</h1>
@@ -77,7 +141,9 @@ export function About() {
 
 // PUBLIC_INTERFACE
 export function NotFound() {
-  /** Fallback route for unknown paths. */
+  /**
+   * Fallback route for unknown paths.
+   */
   return (
     <main className="container" style={{ padding: '2rem' }}>
       <h1 className="title">404 - Page Not Found</h1>
