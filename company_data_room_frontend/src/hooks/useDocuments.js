@@ -4,12 +4,16 @@ import { supabase } from "../services/supabaseClient";
 /**
  * PUBLIC_INTERFACE
  * Custom hook to fetch company documents with optional filtering.
- * Example usage: const { documents, loading, error } = useDocuments({ tier: "tier_2" });
+ * Example usage: const { documents, loading, error } = useDocuments({ tier: "public" });
  *
- * @param {Object} params
- * @param {string} params.tier - Optional. Filter by tier, e.g. "tier_1" for public.
- * @param {string} params.userId - Optional. Filter by uploader.
- * @param {boolean} params.publicOnly - If true, only gets public (tier 1) docs.
+ * Params:
+ * - tier?: 'public' | 'qualified' | 'nda' — filter by document tier
+ * - userId?: string — filter by uploader id (if your schema supports uploader_id)
+ * - publicOnly?: boolean — if true, enforce 'public' tier regardless of tier param
+ *
+ * Notes:
+ * - This hook assumes the documents table schema defined in assets/supabase.md,
+ *   which includes created_at/updated_at timestamps (no 'uploaded_at' column).
  */
 const useDocuments = ({ tier, userId, publicOnly } = {}) => {
   const [documents, setDocuments] = useState([]);
@@ -23,8 +27,8 @@ const useDocuments = ({ tier, userId, publicOnly } = {}) => {
     let query = supabase.from("documents").select("*");
 
     if (publicOnly) {
-      // Force fetch only tier_1 public docs; ignore tier param.
-      query = query.eq("tier", "tier_1");
+      // Force fetch only 'public' docs; ignore tier param.
+      query = query.eq("tier", "public");
     } else if (tier) {
       query = query.eq("tier", tier);
     }
@@ -32,8 +36,9 @@ const useDocuments = ({ tier, userId, publicOnly } = {}) => {
       query = query.eq("uploader_id", userId);
     }
 
+    // Order by created_at to match the documented schema
     query
-      .order("uploaded_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
           setError(error);
