@@ -39,7 +39,6 @@ export default function AdminUserManagement() {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
-
   // Promote or demote user to/from admin (toggle)
   async function handleToggleAdmin(user) {
     setBusyIds((ids) => [...ids, user.id]);
@@ -60,6 +59,28 @@ export default function AdminUserManagement() {
       alert(`Error updating roles: ${err.message}`);
     } finally {
       setBusyIds((ids) => ids.filter(id => id !== user.id));
+    }
+  }
+
+  // Promote user to founder
+  // PUBLIC_INTERFACE
+  async function handlePromoteToFounder(user) {
+    setBusyIds(ids => [...ids, user.id]);
+    try {
+      const currRoles = Array.isArray(user.roles) ? user.roles : [];
+      if (currRoles.includes('founder')) {
+        // Already founder, skip update
+        setBusyIds(ids => ids.filter(id => id !== user.id));
+        return;
+      }
+      const newRoles = [...currRoles, 'founder'].filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
+      const { error } = await supabase.rpc('set_user_roles', { user_id: user.id, roles: newRoles });
+      if (error) throw new Error(error.message || 'Could not update roles');
+      await fetchUsers();
+    } catch (err) {
+      alert(`Error promoting user to founder: ${err.message}`);
+    } finally {
+      setBusyIds(ids => ids.filter(id => id !== user.id));
     }
   }
 
@@ -144,11 +165,13 @@ export default function AdminUserManagement() {
                               fontSize: 12,
                               padding: '2px 7px',
                               borderRadius: 99,
-                              background: r === 'admin' ? '#e0ecff' : '#f6f6fa',
-                              color: r === 'admin' ? '#0057B8' : '#222',
-                              fontWeight: r === 'admin' ? 700 : 500,
+                              background: r === 'admin' ? '#e0ecff' : (r === 'founder' ? '#fff5c2' : '#f6f6fa'),
+                              color: r === 'admin' ? '#0057B8' : (r === 'founder' ? '#B88C00' : '#222'),
+                              fontWeight: r === 'admin' || r === 'founder' ? 700 : 500,
                               marginRight: 4,
-                              border: r === 'admin' ? '1px solid #0057B8' : '1px solid #bbb',
+                              border: r === 'admin'
+                                ? '1px solid #0057B8'
+                                : (r === 'founder' ? '1px solid #FFD700' : '1px solid #bbb'),
                             }}
                           >
                             {r}
@@ -160,7 +183,7 @@ export default function AdminUserManagement() {
                   <td style={{ padding: '6px 10px', fontSize: 13 }}>{user.confirmed_at ? 'Confirmed' : 'Unconfirmed'}</td>
                   <td style={{ padding: '6px 10px', fontSize: 13 }}>{fmtDate(user.created_at)}</td>
                   <td style={{ padding: '6px 10px', fontSize: 13 }}>{fmtDate(user.last_sign_in_at)}</td>
-                  <td style={{ padding: '6px 10px', fontSize: 13 }}>
+                  <td style={{ padding: '6px 10px', fontSize: 13, display: 'flex', gap: 8 }}>
                     <button
                       type="button"
                       style={{
@@ -186,6 +209,31 @@ export default function AdminUserManagement() {
                           ? 'Demote Admin'
                           : 'Promote to Admin'}
                     </button>
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: 13,
+                        padding: '6px 12px',
+                        borderRadius: 7,
+                        background: user.roles.includes('founder') ? '#fff5c2' : '#FFA826',
+                        color: user.roles.includes('founder') ? '#B88C00' : '#fff',
+                        border: user.roles.includes('founder') ? '1px solid #FFD700' : 'none',
+                        fontWeight: 700,
+                        cursor: busyIds.includes(user.id) ? 'wait' : 'pointer',
+                        opacity: busyIds.includes(user.id) ? 0.7 : 1,
+                      }}
+                      disabled={busyIds.includes(user.id)}
+                      onClick={() => handlePromoteToFounder(user)}
+                      title={user.roles.includes('founder') 
+                        ? 'User is already a Founder'
+                        : 'Promote to Founder (grants full platform permissions)'}
+                    >
+                      {busyIds.includes(user.id)
+                        ? 'Updating...'
+                        : user.roles.includes('founder')
+                          ? 'Founder'
+                          : 'Promote to Founder'}
+                    </button>
                   </td>
                 </tr>
               ))
@@ -194,7 +242,7 @@ export default function AdminUserManagement() {
         </table>
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-        <strong>Note:</strong> If you do not see any users, ensure that the required Supabase RPC is deployed and Row-Level Security grants this access only to actual admin users. Changes take effect immediately and log out users automatically if their role is modified.
+        <strong>Note:</strong> If you do not see any users, ensure that the required Supabase RPC is deployed and Row-Level Security grants this access only to actual admin users. You can promote users to <b>founder</b> or <b>admin</b> — these roles have special document permissions and security consequences. Changes take effect immediately and may log out users automatically if their role is modified.
       </div>
     </section>
   );
