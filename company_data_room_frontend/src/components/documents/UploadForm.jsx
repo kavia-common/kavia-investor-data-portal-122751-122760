@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import PropTypes from 'prop-types';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -19,6 +20,10 @@ import { useAuth } from '../../context/AuthContext';
  * - disabled?: boolean — disables inputs/buttons
  */
 export default function UploadForm({ defaultTier = 'public', onUpload, onUploaded = () => {}, disabled = false }) {
+  if (process.env.NODE_ENV === "development" && typeof onUpload !== "function") {
+    // eslint-disable-next-line no-console
+    console.warn("[UploadForm] onUpload prop not provided or not a function. Uploads will not work.");
+  }
   const { hasAnyRole, roleClaims } = useAuth();
   // Defensive: only founders/admins allowed!
   const roleAllowed =
@@ -231,3 +236,10 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
     </form>
   );
 }
+
+UploadForm.propTypes = {
+  defaultTier: PropTypes.oneOf(['public', 'qualified', 'nda']),
+  onUpload: PropTypes.func.isRequired,
+  onUploaded: PropTypes.func,
+  disabled: PropTypes.bool,
+};

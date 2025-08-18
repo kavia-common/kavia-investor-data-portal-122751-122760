@@ -128,7 +128,17 @@ export default function Documents() {
       {canUpload && (
         <UploadForm
           defaultTier={selectedTier}
-          onUpload={(file, opts) => uploadDocument(file, opts)}
+          // Defensive: If uploadDocument isn't a function, log and no-op
+          onUpload={typeof uploadDocument === 'function'
+            ? (file, opts) => uploadDocument(file, opts)
+            : (file, opts) => {
+                if (process.env.NODE_ENV === "development") {
+                  // eslint-disable-next-line no-console
+                  console.error("[UploadForm] uploadDocument is not a function! Document upload disabled.");
+                }
+                alert("Document upload is currently unavailable. Please contact support.");
+                return Promise.resolve({ data: null, error: { message: "uploadDocument is not a function" } });
+              }}
           onUploaded={refresh}
         />
       )}
