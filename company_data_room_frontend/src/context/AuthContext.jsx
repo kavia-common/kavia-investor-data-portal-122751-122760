@@ -177,21 +177,21 @@ export function AuthProvider({ children }) {
           }
         }
         // --- Securely ensure app_metadata.roles is set if user is new ---
-        // Call assignFounderRole/assignAdminRole/assignRoles iff the context is trusted AND user is new
-        // This uses the adminSignupHelper strategy: only run logic if the user has no roles yet
-        // import dynamically to avoid bundle bloat
+        // Always use assignRoles utility after any user creation/invitation for correct RLS and app auth
         if (user && (!user.app_metadata || !user.app_metadata.roles || user.app_metadata.roles.length === 0)) {
           try {
-            const { assignFounderRole } = await import('../services/inviteFounderService');
+            const { assignRoles } = await import('../services/inviteFounderService');
             // Only assign role in a trusted context (frontend with admin key or edge function/backend)
-            // In FE this should only run for current trusted authenticated user, not from browser unconditionally!
-            if (process.env.REACT_APP_SUPABASE_KEY && process.env.REACT_APP_SUPABASE_KEY.startsWith('sbp')) {
-              // Trusted only: assign founder by default, or choose role logic as needed
-              await assignFounderRole(user.id, ['founder']);
+            if (
+              process.env.REACT_APP_SUPABASE_KEY &&
+              process.env.REACT_APP_SUPABASE_KEY.startsWith('sbp')
+            ) {
+              // By default, assign ['founder'] to new first user in this context.
+              await assignRoles(user.id, ['founder']);
             }
           } catch (e) {
             if (process.env.NODE_ENV !== 'production') {
-              console.error('[AuthProvider] Error in assignFounderRole logic:', e);
+              console.error('[AuthProvider] Error in assignRoles logic:', e);
             }
           }
         }

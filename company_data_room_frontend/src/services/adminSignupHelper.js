@@ -21,12 +21,11 @@ export async function promoteFirstUserToAdmin(userId) {
       return false;
     }
     if (data && data.users && data.users.length === 1 && data.users[0].id === userId) {
-      // First user: securely assign founder role using admin API
-      const { error: metaErr } = await supabase.auth.admin.updateUserById(userId, {
-        app_metadata: { roles: ["founder"] }
-      });
-      if (metaErr) {
-        console.error("Error setting app_metadata.roles:", metaErr);
+      // First user: securely assign founder role using assignRoles utility
+      const { assignRoles } = await import('./inviteFounderService');
+      const success = await assignRoles(userId, ['founder']);
+      if (!success) {
+        console.error("Error setting app_metadata.roles for first user.");
         return false;
       }
       return true;

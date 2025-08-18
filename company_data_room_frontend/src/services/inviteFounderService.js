@@ -59,7 +59,7 @@ export async function inviteUserAsFounder(email, siteUrl) {
   }
 
   if (!success) {
-    // Try public (or backend-protected) RPC ─ not ideal but fallback if no admin context
+    // Try public (or backend-protected) RPC — not ideal but fallback if no admin context
     let setRoleResp = await supabase.rpc('set_user_roles_by_email', {
       email,
       roles: ['founder'],
@@ -73,29 +73,41 @@ export async function inviteUserAsFounder(email, siteUrl) {
   return { success: true, error: assignError };
 }
 
-
 /**
- * Securely assigns a role (e.g., 'founder', 'admin') to a user after invite/signup using the Supabase admin API.
- * To be called ONLY from secure backend or admin-protected UI contexts. (NOT from general client-side code.)
- *
  * PUBLIC_INTERFACE
+ * assignRoles
+ * Securely assigns one or more roles to a user after invite/signup using the Supabase admin API.
+ * Use for founder, admin, or any array of roles.
+ * To be called ONLY from secure backend or admin-protected UI contexts (NOT general client-side code).
  * @param {string} userId
- * @param {string[]} roles - Typically ['founder'] or ['admin']
+ * @param {string[]} roles - array of roles such as ['founder'], ['admin'], etc.
  * @returns {Promise<boolean>}
  */
-export async function assignFounderRole(userId, roles = ["founder"]) {
-  // Only callable from trusted/authed backend context, not public.
+export async function assignRoles(userId, roles = []) {
+  // Only callable from trusted/authed backend context (with admin key)
   try {
     const { error } = await supabase.auth.admin.updateUserById(userId, {
       app_metadata: { roles },
     });
     if (error) {
-      console.error("Error setting founder/admin roles for user:", userId, error);
+      console.error("Error setting roles for user:", userId, error);
       return false;
     }
     return true;
   } catch (e) {
-    console.error("Exception in assignFounderRole:", e);
+    console.error("Exception in assignRoles:", e);
     return false;
   }
+}
+
+// Backwards compatibility for existing code that uses assignFounderRole
+/**
+ * PUBLIC_INTERFACE
+ * assignFounderRole
+ * @param {string} userId
+ * @param {string[]} roles - Typically ['founder']
+ * @returns {Promise<boolean>}
+ */
+export async function assignFounderRole(userId, roles = ["founder"]) {
+  return assignRoles(userId, roles);
 }
