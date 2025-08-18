@@ -50,3 +50,30 @@ export async function inviteUserAsFounder(email, siteUrl) {
   // Success! User invited and their roles updated.
   return { success: true, error: null };
 }
+
+
+/**
+ * Securely assigns a role (e.g., 'founder', 'admin') to a user after invite/signup using the Supabase admin API.
+ * To be called ONLY from secure backend or admin-protected UI contexts. (NOT from general client-side code.)
+ *
+ * PUBLIC_INTERFACE
+ * @param {string} userId
+ * @param {string[]} roles - Typically ['founder'] or ['admin']
+ * @returns {Promise<boolean>}
+ */
+export async function assignFounderRole(userId, roles = ["founder"]) {
+  // Only callable from trusted/authed backend context, not public.
+  try {
+    const { error } = await supabase.auth.admin.updateUserById(userId, {
+      app_metadata: { roles },
+    });
+    if (error) {
+      console.error("Error setting founder/admin roles for user:", userId, error);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error("Exception in assignFounderRole:", e);
+    return false;
+  }
+}

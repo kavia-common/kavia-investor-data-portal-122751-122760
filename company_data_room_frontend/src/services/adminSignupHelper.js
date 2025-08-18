@@ -1,32 +1,39 @@
-import { supabase } from './supabaseClient';
+import { supabase } from "./supabaseClient";
 
 /**
- * Checks if any users exist with 'admin' in their roles metadata (app_metadata or user_metadata).
- * Returns true if at least one admin, false otherwise.
+ * Checks if this is the first user in the system.
+ * If so, sets the app_metadata.roles to ['founder'] or ['admin'] using the Supabase admin API.
+ * @param {string} userId
+ * @returns {Promise<boolean>} True if promoted, false otherwise.
+ *
+ * PUBLIC_INTERFACE
  */
-export async function anyAdminUsersExist() {
-  // Query all users via the admin API (requires service_role, or do via Edge Function for production)
-  // In the frontend, we -- by security -- cannot list users unless logged in as service admin, so fallback:
-  // We try to select ourselves from 'users' (as RLS allows), and infer from roles. Not perfect, but for first-user we assume no admins.
-  // If user already exists with admin, RLS should allow them to see themselves.
-  // For development/demo: open all users table (NOT for production)
-  let { data, error } = await supabase.rpc('get_admin_count', {}); // Prefer using EdgeFn/SQL Function if deployed
+export async function promoteFirstUserToAdmin(userId) {
+  // Ensure this is only ever run from a secure context with service_role/admin key
+  // Do NOT expose this to the client or unauthenticated flows.
+  try {
+    // Fetch all users securely via Supabase admin API (requires service_role JWT)
+    // This operation only works if called in backend/edge, not from browser.
+    const { data, error } = await supabase.auth.admin.listUsers();
 
-  // Fallback: Try to select users from Auth.admin if no RPC exists (should fail in browser)
-  if (error || !data) {
-    // No SQL fn deployed; we'll guess using a profile table if you have one, or just return false to allow first user as admin
+    if (error) {
+      console.error("Error fetching users for admin promotion:", error);
+      return false;
+    }
+    if (data && data.users && data.users.length === 1 && data.users[0].id === userId) {
+      // First user: securely assign founder role using admin API
+      const { error: metaErr } = await supabase.auth.admin.updateUserById(userId, {
+        app_metadata: { roles: ["founder"] }
+      });
+      if (metaErr) {
+        console.error("Error setting app_metadata.roles:", metaErr);
+        return false;
+      }
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error("Exception during first user promotion:", e);
     return false;
   }
-  return (data && data[0]?.count > 0);
-}
-
-/**
- * Returns a metadata object suitable for passing to the signup function, with roles set to ['admin'] if first user.
- */
-export async function getSignupMetadataWithAdminIfFirstUser(base = {}) {
-  const adminExists = await anyAdminUsersExist();
-  if (!adminExists) {
-    return { ...base, roles: ['admin'] };
-  }
-  return base;
 }
