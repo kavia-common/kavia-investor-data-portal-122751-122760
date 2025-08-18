@@ -22,7 +22,7 @@ import { useNavigate } from 'react-router-dom';
 export default function Documents() {
   const { roleClaims, hasAnyRole } = useAuth();
   const navigate = useNavigate();
-  const { canAccessNDATier, ndaStatus, initiateNDA } = useNDA();
+  const { canAccessNDATier } = useNDA();
   const [selectedTier, setSelectedTier] = useState('public');
   const [showNDAModal, setShowNDAModal] = useState(false);
 
@@ -31,7 +31,7 @@ export default function Documents() {
     ? hasAnyRole(['founder', 'admin'])
     : (roleClaims?.founder === true || roleClaims?.admin === true);
 
-  // Data binding for current tier
+  // Data binding for current tier; see custom hook for role checks
   const {
     items,
     loading,
@@ -40,6 +40,7 @@ export default function Documents() {
     uploadDocument,
     removeDocument,
     getSignedUrl,
+    setTier
   } = useDocuments(selectedTier);
 
   const canUpload = isFounderOrAdmin; // enforce at this level for upload/delete
@@ -67,7 +68,10 @@ export default function Documents() {
               key={t.key}
               role="tab"
               aria-selected={active}
-              onClick={() => setSelectedTier(t.key)}
+              onClick={() => {
+                setSelectedTier(t.key);
+                if (setTier) setTier(t.key);
+              }}
               className="theme-toggle"
               style={{
                 padding: '8px 12px',
@@ -85,15 +89,15 @@ export default function Documents() {
                     fontSize: '0.8em',
                     padding: '2px 6px',
                     borderRadius: 999,
-                    background: canAccessNDATier 
-                      ? 'rgba(40, 167, 69, 0.15)' 
+                    background: canAccessNDATier
+                      ? 'rgba(40, 167, 69, 0.15)'
                       : 'rgba(220, 53, 69, 0.15)',
-                    color: canAccessNDATier 
-                      ? 'var(--success)' 
+                    color: canAccessNDATier
+                      ? 'var(--success)'
                       : 'var(--danger)',
                   }}
                 >
-                  {canAccessNDATier ? '✓' : '!'}
+                  {canAccessNDATier ? '\u2713' : '!'}
                 </span>
               )}
             </button>
@@ -121,7 +125,6 @@ export default function Documents() {
         </p>
         <TierTabs />
       </header>
-
       {canUpload && (
         <UploadForm
           defaultTier={selectedTier}
@@ -129,7 +132,6 @@ export default function Documents() {
           onUploaded={refresh}
         />
       )}
-
       <DocumentList
         tier={selectedTier}
         items={items}
@@ -149,7 +151,6 @@ export default function Documents() {
           }
         }}
       />
-
       {/* NDA Modal */}
       {showNDAModal && (
         <NDAModal
@@ -162,7 +163,6 @@ export default function Documents() {
           }}
         />
       )}
-
       <footer style={{ fontSize: 14, opacity: 0.8 }}>
         <strong>Your roles:</strong>{' '}
         {Array.isArray(roleClaims?.roles) && roleClaims.roles.length > 0
