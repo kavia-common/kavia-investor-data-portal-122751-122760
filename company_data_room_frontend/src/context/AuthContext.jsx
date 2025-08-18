@@ -178,6 +178,7 @@ export function AuthProvider({ children }) {
      * Notes:
      *  - REACT_APP_SITE_URL should be set for production deployments; it controls the post-login redirect.
      *  - If REACT_APP_SITE_URL is not set, falls back to window.location.origin.
+     *  - If no users with admin role, this user will be assigned roles: ['admin'] on signup (automatic first-admin logic).
      */
     if (!supabase) {
       const error = new Error('Supabase is not configured. Please set REACT_APP_SUPABASE_URL and REACT_APP_SUPABASE_KEY.');
@@ -187,11 +188,28 @@ export function AuthProvider({ children }) {
       }
       return { data: null, error };
     }
+
+    // Patch: Set roles: ['admin'] in user_metadata app_metadata if no admins exist (first signup) [see services/adminSignupHelper.js]
+    let user_metadata = {};
+    try {
+      const { getSignupMetadataWithAdminIfFirstUser } = await import('../services/adminSignupHelper');
+      user_metadata = await getSignupMetadataWithAdminIfFirstUser();
+    } catch (e) {
+      // fallback: no admin role included
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.warn('[AuthProvider] Could not import adminSignupHelper or run check:', e?.message || e);
+      }
+      user_metadata = {};
+    }
+
     const redirectTo = `${getURL()}auth/callback`;
     return supabase.auth.signInWithOtp({
       email,
       options: {
         emailRedirectTo: redirectTo,
+        // Pass custom user metadata for first signup
+        data: user_metadata && Object.keys(user_metadata).length > 0 ? user_metadata : undefined,
       },
     });
   }
