@@ -14,7 +14,8 @@ import { getURL } from "../utils/getURL";
  */
 const Home = () => {
   // Fetch only "tier_1" (public) docs—no authentication required
-  const { documents, loading, error } = useDocuments({ tier: "tier_1", publicOnly: true });
+  // Fix: use 'items' instead of 'documents', and alias to 'documents' for clarity in this file
+  const { items: documents = [], loading, error } = useDocuments({ tier: "tier_1", publicOnly: true });
 
   return (
     <div className="home-landing" style={{ maxWidth: 900, margin: "0 auto", padding: "2em 0" }}>
@@ -36,12 +37,13 @@ const Home = () => {
           </Typography.Text>
         )}
 
-        {!loading && !error && documents.length === 0 && (
+        {/* Defensive: Always use safe fallback for documents */}
+        {!loading && !error && (documents?.length === 0) && (
           <Typography.Text>No public documents are currently available.</Typography.Text>
         )}
 
         <Space direction="vertical" size="large" style={{ width: "100%" }}>
-          {documents.map((doc) => (
+          {(documents || []).map((doc) => (
             <Card
               key={doc.id}
               bordered
