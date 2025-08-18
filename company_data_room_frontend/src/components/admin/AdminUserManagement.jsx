@@ -1,0 +1,201 @@
+import React, { useEffect, useState, useCallback } from 'react';
+import { supabase } from '../../services/supabaseClient';
+
+/**
+ * PUBLIC_INTERFACE
+ * AdminUserManagement
+ * 
+ * Admin panel component to view users (email, role/status) and promote/demote user admin status.
+ * Requires backend RPCs:
+ *   - list_users_with_metadata: returns [{id, email, roles: [], created_at, confirmed_at, last_sign_in_at}]
+ *   - set_user_roles: accepts { user_id, roles: [] }
+ *
+ * Only visible to admin users. All changes require live reload.
+ */
+export default function AdminUserManagement() {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [busyIds, setBusyIds] = useState([]); // Array of user ids being updated
+
+  // Fetch user list on mount
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    setUsers([]);
+    try {
+      // Secure SQL function/RPC; must be limited to 'admin' server-side
+      const { data, error } = await supabase.rpc('list_users_with_metadata', {});
+      if (error || !Array.isArray(data)) {
+        throw new Error(error?.message || 'Unable to fetch user list');
+      }
+      setUsers(data);
+    } catch (err) {
+      setError(err.message || 'Failed to load users');
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  // Promote or demote user to/from admin (toggle)
+  async function handleToggleAdmin(user) {
+    setBusyIds((ids) => [...ids, user.id]);
+    try {
+      const currRoles = Array.isArray(user.roles) ? user.roles : [];
+      const isAdmin = currRoles.includes('admin');
+      let newRoles;
+      if (isAdmin) {
+        newRoles = currRoles.filter(r => r !== 'admin');
+      } else {
+        newRoles = [...currRoles, 'admin'];
+      }
+      // Secure server-side RPC, only available to actual admins
+      const { error } = await supabase.rpc('set_user_roles', { user_id: user.id, roles: newRoles });
+      if (error) throw new Error(error.message || 'Could not update roles');
+      await fetchUsers();
+    } catch (err) {
+      alert(`Error updating roles: ${err.message}`);
+    } finally {
+      setBusyIds((ids) => ids.filter(id => id !== user.id));
+    }
+  }
+
+  // Helper to show relative date nicely
+  function fmtDate(d) {
+    if (!d) return '';
+    const dt = new Date(d);
+    if (isNaN(dt)) return '';
+    return dt.toLocaleString();
+  }
+
+  return (
+    <section
+      aria-label="Admin - User Management"
+      style={{
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border-color)',
+        borderRadius: 12,
+        padding: '1rem',
+        marginBottom: 16,
+        marginTop: 12,
+        display: 'grid',
+        gap: 14,
+      }}
+    >
+      <header style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h2 style={{ margin: 0, fontSize: 18 }}>User Management</h2>
+        <button
+          type="button"
+          style={{ marginLeft: 'auto', fontSize: 12, padding: '5px 10px', borderRadius: 6 }}
+          onClick={fetchUsers}
+          disabled={loading}
+        >
+          Reload Users
+        </button>
+      </header>
+      {error && (
+        <div style={{ color: '#dc3545', fontWeight: 500 }}>{error}</div>
+      )}
+      <div style={{ overflow: 'auto', borderRadius: 10 }}>
+        <table
+          style={{
+            width: '100%',
+            background: 'transparent',
+            borderCollapse: 'collapse',
+            minWidth: 400,
+          }}
+        >
+          <thead>
+            <tr style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <th style={{ textAlign: 'left', fontSize: 13, fontWeight: 700, padding: '7px 10px' }}>Email</th>
+              <th style={{ textAlign: 'left', fontSize: 13, fontWeight: 700, padding: '7px 10px' }}>Roles</th>
+              <th style={{ textAlign: 'left', fontSize: 13, fontWeight: 700, padding: '7px 10px' }}>Status</th>
+              <th style={{ textAlign: 'left', fontSize: 13, fontWeight: 700, padding: '7px 10px' }}>Joined</th>
+              <th style={{ textAlign: 'left', fontSize: 13, fontWeight: 700, padding: '7px 10px' }}>Last Sign-in</th>
+              <th style={{ padding: '7px 10px' }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: 18, color: 'var(--text-secondary)' }}>
+                  Loading user list...
+                </td>
+              </tr>
+            ) : users.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={{ textAlign: 'center', padding: 18, color: 'var(--text-secondary)' }}>
+                  No users found. Ensure the backend RPC exists and you have admin privileges.
+                </td>
+              </tr>
+            ) : (
+              users.map(user => (
+                <tr key={user.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                  <td style={{ padding: '6px 10px', fontSize: 14 }}>{user.email || <span style={{ color: '#888' }}>Unnamed</span>}</td>
+                  <td style={{ padding: '6px 10px', fontSize: 13 }}>
+                    {Array.isArray(user.roles) && user.roles.length > 0
+                      ? user.roles.map(r => (
+                          <span
+                            key={r}
+                            style={{
+                              fontSize: 12,
+                              padding: '2px 7px',
+                              borderRadius: 99,
+                              background: r === 'admin' ? '#e0ecff' : '#f6f6fa',
+                              color: r === 'admin' ? '#0057B8' : '#222',
+                              fontWeight: r === 'admin' ? 700 : 500,
+                              marginRight: 4,
+                              border: r === 'admin' ? '1px solid #0057B8' : '1px solid #bbb',
+                            }}
+                          >
+                            {r}
+                          </span>
+                        ))
+                      : <span style={{ color: '#aaa' }}>none</span>
+                    }
+                  </td>
+                  <td style={{ padding: '6px 10px', fontSize: 13 }}>{user.confirmed_at ? 'Confirmed' : 'Unconfirmed'}</td>
+                  <td style={{ padding: '6px 10px', fontSize: 13 }}>{fmtDate(user.created_at)}</td>
+                  <td style={{ padding: '6px 10px', fontSize: 13 }}>{fmtDate(user.last_sign_in_at)}</td>
+                  <td style={{ padding: '6px 10px', fontSize: 13 }}>
+                    <button
+                      type="button"
+                      style={{
+                        fontSize: 13,
+                        padding: '6px 12px',
+                        borderRadius: 7,
+                        background: user.roles.includes('admin') ? '#FFD700' : '#0057B8',
+                        color: user.roles.includes('admin') ? '#282C34' : '#fff',
+                        border: 'none',
+                        cursor: busyIds.includes(user.id) ? 'wait' : 'pointer',
+                        boxShadow: '0 1px 4px rgba(0,0,0,0.07)',
+                        fontWeight: 700,
+                        opacity: busyIds.includes(user.id) ? 0.7 : 1,
+                        marginRight: 0
+                      }}
+                      disabled={busyIds.includes(user.id)}
+                      onClick={() => handleToggleAdmin(user)}
+                      title={user.roles.includes('admin') ? 'Demote from admin' : 'Promote to admin'}
+                    >
+                      {busyIds.includes(user.id)
+                        ? 'Updating...'
+                        : user.roles.includes('admin')
+                          ? 'Demote Admin'
+                          : 'Promote to Admin'}
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        <strong>Note:</strong> If you do not see any users, ensure that the required Supabase RPC is deployed and Row-Level Security grants this access only to actual admin users. Changes take effect immediately and log out users automatically if their role is modified.
+      </div>
+    </section>
+  );
+}

@@ -5,6 +5,7 @@ import useNotifications from '../hooks/useNotifications';
 import useAnalytics from '../hooks/useAnalytics';
 import FlaggedContent from '../components/admin/FlaggedContent';
 import AuditLogs from '../components/admin/AuditLogs';
+import AdminUserManagement from '../components/admin/AdminUserManagement';
 
 /**
  * PUBLIC_INTERFACE
@@ -302,6 +303,9 @@ export default function AdminPanel() {
           Visible to: Admin role only
         </p>
       </header>
+
+      {/* Admin User Management */}
+      <AdminUserManagement />
 
       <article
         style={{
