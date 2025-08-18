@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { getURL } from '../utils/getURL';
-import { ensureUserInSQLTable } from '../services/userSyncService';
+import { syncUserToSQLTable } from '../services/userSyncService';
 
 /**
  * PUBLIC_INTERFACE
@@ -168,10 +168,17 @@ export function AuthProvider({ children }) {
   // After user state changes: ensure user is in the SQL users table (no duplicates)
   useEffect(() => {
     if (user && user.id && user.email) {
-      ensureUserInSQLTable({
-        id: user.id,
-        email: user.email
-      });
+      (async () => {
+        try {
+          await syncUserToSQLTable(user);
+        } catch (e) {
+          // Log or handle error if needed
+          if (process.env.NODE_ENV !== 'production') {
+            // eslint-disable-next-line no-console
+            console.error('[AuthProvider] Failed syncing user with SQL table:', e);
+          }
+        }
+      })();
     }
   }, [user]);
 
