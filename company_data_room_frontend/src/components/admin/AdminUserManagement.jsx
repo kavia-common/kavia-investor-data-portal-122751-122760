@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../../services/supabaseClient';
+import { inviteUserAsFounder } from '../../services/inviteFounderService';
 
 /**
  * PUBLIC_INTERFACE
@@ -17,6 +18,11 @@ export default function AdminUserManagement() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busyIds, setBusyIds] = useState([]); // Array of user ids being updated
+
+  // --- Invitation state/UI ---
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteResult, setInviteResult] = useState('');
 
   // Fetch user list on mount
   const fetchUsers = useCallback(async () => {
@@ -117,6 +123,79 @@ export default function AdminUserManagement() {
           Reload Users
         </button>
       </header>
+
+      {/* Invite Founder UI */}
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setInviting(true);
+          setInviteResult('');
+          try {
+            const siteUrl = process.env.REACT_APP_SITE_URL || window.location.origin;
+            const result = await inviteUserAsFounder(inviteEmail, siteUrl);
+            if (result.success) {
+              setInviteResult('Invitation sent! Founder will receive a magic link email.');
+              setInviteEmail('');
+              fetchUsers();
+            } else {
+              setInviteResult(result.error || 'Failed to invite.');
+            }
+          } catch (err) {
+            setInviteResult('Error: ' + (err.message || err));
+          }
+          setInviting(false);
+        }}
+        style={{
+          margin: '10px 0 5px 0',
+          background: 'rgba(255,255,204,0.12)',
+          border: '1px solid #FFD70033',
+          borderRadius: 9,
+          padding: '9px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          maxWidth: 500,
+        }}
+      >
+        <input
+          type="email"
+          required
+          autoComplete="off"
+          placeholder="Invite new founder by email"
+          value={inviteEmail}
+          onChange={e => setInviteEmail(e.target.value)}
+          disabled={inviting}
+          style={{
+            fontSize: 14,
+            border: '1px solid #FFD700',
+            borderRadius: 6,
+            padding: '5px 10px',
+            flex: 1,
+          }}
+        />
+        <button
+          type="submit"
+          style={{
+            background: inviting ? '#FFD70055' : '#FFD700',
+            color: '#282C34',
+            border: 'none',
+            borderRadius: 7,
+            padding: '6px 14px',
+            fontWeight: 700,
+            fontSize: 13,
+            minWidth: 90,
+            cursor: inviting ? 'not-allowed' : 'pointer'
+          }}
+          disabled={inviting}
+        >
+          {inviting ? 'Inviting...' : 'Invite Founder'}
+        </button>
+      </form>
+      {inviteResult && (
+        <div style={{ color: /success|sent/i.test(inviteResult) ? '#059669' : '#B91C1C', margin: '3px 0 12px 0', fontSize: 13 }}>
+          {inviteResult}
+        </div>
+      )}
       {error && (
         <div style={{ color: '#dc3545', fontWeight: 500 }}>{error}</div>
       )}
