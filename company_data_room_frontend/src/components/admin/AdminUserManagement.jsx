@@ -75,14 +75,24 @@ export default function AdminUserManagement() {
     try {
       const currRoles = Array.isArray(user.roles) ? user.roles : [];
       if (currRoles.includes('founder')) {
-        // Already founder, skip update
         setBusyIds(ids => ids.filter(id => id !== user.id));
         return;
       }
-      const newRoles = [...currRoles, 'founder'].filter((v, i, arr) => arr.indexOf(v) === i); // dedupe
-      const { error } = await supabase.rpc('set_user_roles', { user_id: user.id, roles: newRoles });
-      if (error) throw new Error(error.message || 'Could not update roles');
-      await fetchUsers();
+      // Use secure Admin API role set if permitted
+      const { assignFounderRole } = await import('../../services/inviteFounderService');
+      // Only attempt if we have admin privileges (browser must be privileged or running in a secure context)
+      let assigned = false;
+      if (process.env.REACT_APP_SUPABASE_KEY && process.env.REACT_APP_SUPABASE_KEY.startsWith('sbp')) {
+        assigned = await assignFounderRole(user.id, [...currRoles, 'founder'].filter((v, i, arr) => arr.indexOf(v) === i));
+      } else {
+        // fallback: old RPC
+        const newRoles = [...currRoles, 'founder'].filter((v, i, arr) => arr.indexOf(v) === i);
+        const { error } = await supabase.rpc('set_user_roles', { user_id: user.id, roles: newRoles });
+        if (error) throw new Error(error.message || 'Could not update roles');
+        assigned = true;
+      }
+      if (assigned) await fetchUsers();
+      else throw new Error("Failed to assign founder role via Admin API.");
     } catch (err) {
       alert(`Error promoting user to founder: ${err.message}`);
     } finally {

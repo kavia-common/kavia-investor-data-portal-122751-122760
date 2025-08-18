@@ -172,10 +172,27 @@ export function AuthProvider({ children }) {
         try {
           await syncUserToSQLTable(user);
         } catch (e) {
-          // Log or handle error if needed
           if (process.env.NODE_ENV !== 'production') {
-            // eslint-disable-next-line no-console
             console.error('[AuthProvider] Failed syncing user with SQL table:', e);
+          }
+        }
+        // --- Securely ensure app_metadata.roles is set if user is new ---
+        // Call assignFounderRole/assignAdminRole/assignRoles iff the context is trusted AND user is new
+        // This uses the adminSignupHelper strategy: only run logic if the user has no roles yet
+        // import dynamically to avoid bundle bloat
+        if (user && (!user.app_metadata || !user.app_metadata.roles || user.app_metadata.roles.length === 0)) {
+          try {
+            const { assignFounderRole } = await import('../services/inviteFounderService');
+            // Only assign role in a trusted context (frontend with admin key or edge function/backend)
+            // In FE this should only run for current trusted authenticated user, not from browser unconditionally!
+            if (process.env.REACT_APP_SUPABASE_KEY && process.env.REACT_APP_SUPABASE_KEY.startsWith('sbp')) {
+              // Trusted only: assign founder by default, or choose role logic as needed
+              await assignFounderRole(user.id, ['founder']);
+            }
+          } catch (e) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.error('[AuthProvider] Error in assignFounderRole logic:', e);
+            }
           }
         }
       })();

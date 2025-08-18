@@ -36,19 +36,41 @@ export async function inviteUserAsFounder(email, siteUrl) {
   await new Promise((r) => setTimeout(r, 1200));
 
   // Step 2: Find user by email (need admin API for metadata, but limited in FE)
-  // Try calling a secured RPC (your Supabase backend should provide this for real app)
-  let setRoleResp = await supabase.rpc('set_user_roles_by_email', {
-    email,
-    roles: ['founder']
-  });
+  // First, try secure Admin API if possible (FE trusted context only)
+  let success = false;
+  let assignError = null;
 
-  if (setRoleResp.error) {
-    // Unable to set metadata—may require admin to finish in backend
-    return { success: false, error: "Invite sent, but failed to set founder role: " + setRoleResp.error.message };
+  try {
+    if (process.env.REACT_APP_SUPABASE_KEY && process.env.REACT_APP_SUPABASE_KEY.startsWith('sbp')) {
+      // Search user by email (using admin.listUsers)
+      const { data: userList, error: listErr } = await supabase.auth.admin.listUsers();
+      if (listErr) throw new Error(listErr.message);
+      const userObj = userList?.users?.find((u) => u.email === email);
+      if (userObj) {
+        // Assign founder/admin role via Admin API
+        const assigned = await assignFounderRole(userObj.id, ['founder']);
+        success = assigned;
+        if (!assigned) assignError = 'Failed to assign founder role via admin API';
+      }
+    }
+  } catch (e) {
+    assignError = e.message;
+    // fallback to public RPC set_user_roles_by_email
   }
 
-  // Success! User invited and their roles updated.
-  return { success: true, error: null };
+  if (!success) {
+    // Try public (or backend-protected) RPC ─ not ideal but fallback if no admin context
+    let setRoleResp = await supabase.rpc('set_user_roles_by_email', {
+      email,
+      roles: ['founder'],
+    });
+    if (setRoleResp.error) {
+      return { success: false, error: "Invite sent, but failed to set founder role: " + setRoleResp.error.message };
+    }
+  }
+
+  // Success! User invited and their roles updated/admin call worked.
+  return { success: true, error: assignError };
 }
 
 
