@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { getURL } from '../utils/getURL';
+import { ensureUserInSQLTable } from '../services/userSyncService';
 
 /**
  * PUBLIC_INTERFACE
@@ -163,6 +164,16 @@ export function AuthProvider({ children }) {
       }
     };
   }, []);
+
+  // After user state changes: ensure user is in the SQL users table (no duplicates)
+  useEffect(() => {
+    if (user && user.id && user.email) {
+      ensureUserInSQLTable({
+        id: user.id,
+        email: user.email
+      });
+    }
+  }, [user]);
 
   // PUBLIC_INTERFACE
   async function loginWithMagicLink(email) {
