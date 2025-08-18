@@ -20,23 +20,29 @@ import { useNavigate } from 'react-router-dom';
  * - Integrates NDA status checking and gating for NDA-tier documents
  */
 export default function Documents() {
-  const { roleClaims } = useAuth();
+  const { roleClaims, hasAnyRole } = useAuth();
   const navigate = useNavigate();
   const { canAccessNDATier, ndaStatus, initiateNDA } = useNDA();
   const [selectedTier, setSelectedTier] = useState('public');
   const [showNDAModal, setShowNDAModal] = useState(false);
+
+  // Determine permissions: founders and admins only
+  const isFounderOrAdmin = hasAnyRole
+    ? hasAnyRole(['founder', 'admin'])
+    : (roleClaims?.founder === true || roleClaims?.admin === true);
 
   // Data binding for current tier
   const {
     items,
     loading,
     error,
-    canUpload,
     refresh,
     uploadDocument,
     removeDocument,
     getSignedUrl,
   } = useDocuments(selectedTier);
+
+  const canUpload = isFounderOrAdmin; // enforce at this level for upload/delete
 
   const tiers = useMemo(
     () => [

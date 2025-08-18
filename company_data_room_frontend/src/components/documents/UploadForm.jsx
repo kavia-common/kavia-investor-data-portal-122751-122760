@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * PUBLIC_INTERFACE
@@ -18,6 +19,14 @@ import React, { useMemo, useState } from 'react';
  * - disabled?: boolean — disables inputs/buttons
  */
 export default function UploadForm({ defaultTier = 'public', onUpload, onUploaded = () => {}, disabled = false }) {
+  const { hasAnyRole, roleClaims } = useAuth();
+  // Defensive: only founders/admins allowed!
+  const roleAllowed =
+    hasAnyRole
+      ? hasAnyRole(['founder', 'admin'])
+      : (roleClaims?.founder === true || roleClaims?.admin === true);
+  const realDisabled = disabled || !roleAllowed;
+
   const [file, setFile] = useState(null);
   const [name, setName] = useState('');
   const [tier, setTier] = useState(defaultTier);
@@ -25,8 +34,8 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
   const [busy, setBusy] = useState(false);
 
   const canSubmit = useMemo(() => {
-    return Boolean(file) && !busy && !disabled;
-  }, [file, busy, disabled]);
+    return Boolean(file) && !busy && !realDisabled;
+  }, [file, busy, realDisabled]);
 
   function parseTags(str) {
     if (!str) return [];
@@ -82,9 +91,25 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
         border: '1px solid var(--border-color)',
         borderRadius: 12,
         padding: '0.9rem',
+        opacity: realDisabled ? 0.6 : 1
       }}
     >
       <h3 style={{ margin: 0, fontSize: 16 }}>Upload a document</h3>
+      {!roleAllowed && (
+        <div
+          role="alert"
+          style={{
+            color: 'var(--danger)',
+            background: 'rgba(220, 53, 69, 0.09)',
+            border: '1px solid rgba(220, 53, 69, 0.18)',
+            borderRadius: 8,
+            padding: '10px 10px 6px 10px',
+            marginBottom: 8,
+          }}
+        >
+          Only founders or admins can upload documents.
+        </div>
+      )}
 
       <div style={{ display: 'grid', gap: 6 }}>
         <label htmlFor="file" style={{ fontWeight: 600 }}>
@@ -95,7 +120,7 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
           name="file"
           type="file"
           onChange={handleFileChange}
-          disabled={disabled || busy}
+          disabled={realDisabled || busy}
           style={{
             padding: '0.4rem 0.5rem',
             borderRadius: 8,
@@ -117,7 +142,7 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
           placeholder="e.g., Financials Q2.pdf"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          disabled={disabled || busy}
+          disabled={realDisabled || busy}
           style={{
             padding: '0.6rem 0.7rem',
             borderRadius: 8,
@@ -137,7 +162,7 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
           name="tier"
           value={tier}
           onChange={(e) => setTier(e.target.value)}
-          disabled={disabled || busy}
+          disabled={realDisabled || busy}
           style={{
             padding: '0.6rem 0.7rem',
             borderRadius: 8,
@@ -164,7 +189,7 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
           placeholder="e.g., financials, 2024, board"
           value={tags}
           onChange={(e) => setTags(e.target.value)}
-          disabled={disabled || busy}
+          disabled={realDisabled || busy}
           style={{
             padding: '0.6rem 0.7rem',
             borderRadius: 8,
@@ -184,7 +209,7 @@ export default function UploadForm({ defaultTier = 'public', onUpload, onUploade
             setTags('');
           }}
           className="theme-toggle"
-          disabled={disabled || busy}
+          disabled={realDisabled || busy}
           style={{
             background: 'transparent',
             border: '1px solid rgba(255,255,255,0.1)',
